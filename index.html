@@ -603,59 +603,77 @@
   var state = loadState();
   saveState(); // persiste immédiatement toute fusion de nouvelles recettes par défaut
 
+  // Garantit une structure complète et cohérente, que les données viennent du localStorage
+  // ou d'une synchro distante (Firebase). Important : Firebase Realtime Database élague les
+  // tableaux/objets vides ({} ou []) quand il stocke — donc quizz/extras/menuCourant/historique
+  // peuvent très bien revenir "absents" (undefined) après un aller-retour, même s'ils étaient
+  // présents (mais vides) au moment de l'écriture. Sans cette fonction, le premier accès à
+  // state.quizz.length (ou équivalent) plante silencieusement le rendu.
+  function normalizeState(parsed){
+    parsed = parsed || {};
+    var storedVersion = (typeof parsed.defaultsVersion === "number") ? parsed.defaultsVersion : 1;
+    var base = defaultState();
+
+    if(!parsed.recipes || parsed.recipes.length===0) parsed.recipes = base.recipes;
+    if(!Array.isArray(parsed.quizz)) parsed.quizz = [];
+    if(!Array.isArray(parsed.menuCourant)) parsed.menuCourant = [];
+    if(!Array.isArray(parsed.historique)) parsed.historique = [];
+    if(!Array.isArray(parsed.extras)) parsed.extras = [];
+
+    parsed.programme = parsed.programme || {};
+    for(var pk in base.programme){ if(!(pk in parsed.programme)) parsed.programme[pk] = base.programme[pk]; }
+
+    parsed.recipes.forEach(function(r){
+      if(!r.moment) r.moment = "flexible";
+      if(!r.sante) r.sante = "equilibre";
+      if(!r.proteine) r.proteine = "vegetarien";
+      if(r.alternativeVegeId===undefined) r.alternativeVegeId = "";
+      if(!Array.isArray(r.style)) r.style = r.style ? [r.style] : [];
+      if(!Array.isArray(r.ingredients)) r.ingredients = [];
+    });
+    parsed.historique.forEach(function(week){
+      if(!Array.isArray(week.items)) week.items = [];
+    });
+
+    // Ajoute les nouvelles recettes par défaut ajoutées depuis la dernière visite,
+    // sans dupliquer celles déjà présentes (comparaison par nom).
+    if(storedVersion < 2){
+      var existingNames = {};
+      parsed.recipes.forEach(function(r){ existingNames[normalize(r.nom)] = true; });
+      base.recipes.forEach(function(r){
+        if(!existingNames[normalize(r.nom)]){
+          parsed.recipes.push(r);
+        }
+      });
+    }
+
+    // Ajoute la catégorie (PLATS/REPAS/DESSERTS/BOISSONS/AUTRE) aux recettes qui n'en
+    // ont pas encore : reprend la classification d'origine si le nom correspond à une
+    // recette par défaut connue, sinon "repas" par défaut (sans jamais écraser une
+    // catégorie déjà choisie par l'utilisateur).
+    if(storedVersion < 3){
+      var baseByName = {};
+      base.recipes.forEach(function(r){ baseByName[normalize(r.nom)] = r; });
+      parsed.recipes.forEach(function(r){
+        if(!r.categorie){
+          var match = baseByName[normalize(r.nom)];
+          r.categorie = match ? match.categorie : "repas";
+        }
+      });
+    }
+
+    if(storedVersion < CURRENT_DEFAULTS_VERSION){
+      parsed.defaultsVersion = CURRENT_DEFAULTS_VERSION;
+    }
+
+    return parsed;
+  }
+
   function loadState(){
     try{
       var raw = localStorage.getItem(STORAGE_KEY);
       if(!raw) return defaultState();
-      var parsed = JSON.parse(raw);
-      // Capture la version AVANT toute fusion (la fusion générique ci-dessous
-      // remplirait sinon "defaultsVersion" avec la valeur courante et fausserait la détection).
-      var storedVersion = (typeof parsed.defaultsVersion === "number") ? parsed.defaultsVersion : 1;
-      // merge with defaults to survive future upgrades
-      var base = defaultState();
-      if(!parsed.recipes || parsed.recipes.length===0) parsed.recipes = base.recipes;
-      for(var k in base){ if(!(k in parsed)) parsed[k] = base[k]; }
-      parsed.programme = parsed.programme || {};
-      for(var pk in base.programme){ if(!(pk in parsed.programme)) parsed.programme[pk] = base.programme[pk]; }
-      parsed.recipes.forEach(function(r){
-        if(!r.moment) r.moment = "flexible";
-        if(!r.sante) r.sante = "equilibre";
-        if(!r.proteine) r.proteine = "vegetarien";
-        if(r.alternativeVegeId===undefined) r.alternativeVegeId = "";
-      });
-
-      // Ajoute les nouvelles recettes par défaut ajoutées depuis la dernière visite,
-      // sans dupliquer celles déjà présentes (comparaison par nom).
-      if(storedVersion < 2){
-        var existingNames = {};
-        parsed.recipes.forEach(function(r){ existingNames[normalize(r.nom)] = true; });
-        base.recipes.forEach(function(r){
-          if(!existingNames[normalize(r.nom)]){
-            parsed.recipes.push(r);
-          }
-        });
-      }
-
-      // Ajoute la catégorie (PLATS/REPAS/DESSERTS/BOISSONS/AUTRE) aux recettes qui n'en
-      // ont pas encore : reprend la classification d'origine si le nom correspond à une
-      // recette par défaut connue, sinon "repas" par défaut (sans jamais écraser une
-      // catégorie déjà choisie par l'utilisateur).
-      if(storedVersion < 3){
-        var baseByName = {};
-        base.recipes.forEach(function(r){ baseByName[normalize(r.nom)] = r; });
-        parsed.recipes.forEach(function(r){
-          if(!r.categorie){
-            var match = baseByName[normalize(r.nom)];
-            r.categorie = match ? match.categorie : "repas";
-          }
-        });
-      }
-
-      if(storedVersion < CURRENT_DEFAULTS_VERSION){
-        parsed.defaultsVersion = CURRENT_DEFAULTS_VERSION;
-      }
-
-      return parsed;
+      return normalizeState(JSON.parse(raw));
     }catch(e){
       return defaultState();
     }
@@ -795,17 +813,22 @@
     var safeCode = String(cfg.code).trim().replace(/[.#$\[\]\/\s]/g, "_");
     syncRef = syncDb.ref("households/"+safeCode+"/data");
     syncRef.on("value", function(snapshot){
-      var remote = snapshot.val();
-      if(remote){
-        applyingRemoteUpdate = true;
-        state = remote;
-        renderAll();
-        saveState();
+      try{
+        var remote = snapshot.val();
+        if(remote){
+          applyingRemoteUpdate = true;
+          state = normalizeState(remote);
+          renderAll();
+          saveState();
+          applyingRemoteUpdate = false;
+        } else {
+          syncRef.set(state);
+        }
+        setSyncStatus("on");
+      }catch(e){
         applyingRemoteUpdate = false;
-      } else {
-        syncRef.set(state);
+        setSyncStatus("error", "Erreur d'affichage des données reçues : " + (e && e.message ? e.message : e));
       }
-      setSyncStatus("on");
     }, function(err){
       setSyncStatus("error", err && err.message ? err.message : String(err));
     });
