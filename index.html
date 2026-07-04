@@ -1,0 +1,1631 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BRAD — Batch de Repas et Achats Domestiques</title>
+<style>
+  :root{
+    --black:#1a1a1a;
+    --dark:#2e2e2e;
+    --gray:#6e6e6e;
+    --light-gray:#ececea;
+    --border:#d9d9d6;
+    --bg:#f5f5f3;
+    --card:#ffffff;
+    --text:#1a1a1a;
+    --urgent:#1a1a1a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--text); line-height:1.45;
+  }
+  header{
+    background:var(--black); color:#fff; padding:18px 20px 0 20px;
+  }
+  header h1{margin:0 0 12px 0; font-size:1.35rem;}
+  nav{display:flex; gap:4px; flex-wrap:wrap;}
+  nav button{
+    background:transparent; border:none; color:#d4d4d2; padding:10px 14px;
+    font-size:0.85rem; cursor:pointer; border-radius:8px 8px 0 0; font-weight:600;
+    text-transform:uppercase; letter-spacing:0.03em;
+  }
+  nav button.active{background:var(--bg); color:var(--black);}
+  main{max-width:900px; margin:0 auto; padding:20px 16px 80px 16px;}
+  .tab{display:none;}
+  .tab.active{display:block;}
+  .card{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px 18px; margin-bottom:14px;}
+  .card h2{margin-top:0; font-size:1.1rem;}
+  .muted{color:var(--gray); font-size:0.9rem;}
+  label{display:block; font-weight:600; font-size:0.85rem; margin:10px 0 4px 0;}
+  input[type=text], input[type=number], select, textarea{
+    width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:0.95rem; font-family:inherit;
+  }
+  .row{display:flex; gap:10px; flex-wrap:wrap;}
+  .row > *{flex:1; min-width:120px;}
+  .btn{
+    background:var(--black); color:#fff; border:none; padding:9px 16px; border-radius:8px;
+    font-size:0.92rem; font-weight:600; cursor:pointer; margin-top:10px;
+  }
+  .btn.secondary{background:#fff; color:var(--black); border:1px solid var(--black);}
+  .btn.danger{background:#fff; color:var(--black); border:1px solid var(--black); text-decoration:underline;}
+  .btn.small{padding:5px 10px; font-size:0.8rem; margin-top:0;}
+  .recipe-card{border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:10px; background:#fdfdfc;}
+  .recipe-card.suggested{border-color:var(--black); border-width:2px; background:var(--light-gray);}
+  .tag{display:inline-block; background:var(--light-gray); color:var(--gray); border-radius:20px; padding:2px 10px; font-size:0.75rem; margin:2px 4px 2px 0;}
+  .tag.badge{background:var(--black); color:#fff; font-weight:700;}
+  .ing-row{display:flex; gap:6px; margin-bottom:6px; align-items:center;}
+  .ing-row input, .ing-row select{padding:6px 8px; font-size:0.88rem;}
+  .ing-row .nom{flex:3;}
+  .ing-row .qte{flex:1;}
+  .ing-row .unite{flex:1;}
+  .ing-row .magasin{flex:2;}
+  .ing-row button{flex:0 0 auto;}
+  .remove-x{background:none; border:none; color:var(--black); font-size:1.1rem; cursor:pointer; padding:0 6px;}
+  .shop-group{margin-bottom:16px;}
+  .shop-group h3{margin:0 0 8px 0; font-size:1rem; color:var(--black); border-bottom:2px solid var(--black); padding-bottom:4px;}
+  .shop-item{display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px dashed var(--border);}
+  .shop-item input[type=checkbox]{width:18px; height:18px;}
+  .shop-item.checked label{text-decoration:line-through; color:var(--gray);}
+  .quizz-row{display:flex; gap:8px; margin-bottom:6px; align-items:center;}
+  .pill-select{display:flex; gap:4px;}
+  .pill{padding:4px 10px; border-radius:20px; border:1px solid var(--border); font-size:0.8rem; cursor:pointer; background:#fff; color:var(--gray);}
+  .pill.urgent.active{background:var(--black); border-color:var(--black); color:#fff; font-weight:700;}
+  .pill.ok.active{background:#fff; border-color:var(--black); color:var(--black); font-weight:700;}
+  .empty{color:var(--gray); font-style:italic; font-size:0.9rem;}
+  .checkboxes{display:flex; gap:14px; flex-wrap:wrap; margin-top:4px;}
+  .checkboxes label{display:flex; align-items:center; gap:6px; font-weight:500;}
+  .checkboxes input{width:auto;}
+  .toast{position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--black); color:#fff; padding:10px 18px; border-radius:8px; font-size:0.9rem; opacity:0; transition:opacity 0.3s; pointer-events:none;}
+  .toast.show{opacity:0.95;}
+  #recipe-form{display:none;}
+  #recipe-form.open{display:block;}
+  .footer-note{font-size:0.8rem; color:var(--gray); margin-top:20px; text-align:center;}
+  @media print{
+    header, nav, .no-print{display:none !important;}
+    .tab{display:none !important;}
+    #tab-courses{display:block !important;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🛒 BRAD</h1>
+  <p style="margin:-8px 0 12px 0; font-size:0.8rem; color:#c9c9c7; letter-spacing:0.02em;">Batch de Repas et Achats Domestiques</p>
+  <nav id="tabs">
+    <button data-tab="recettes" class="active">Recettes</button>
+    <button data-tab="quizz">Restes</button>
+    <button data-tab="programme">Cette semaine</button>
+    <button data-tab="suggestions">Suggestions</button>
+    <button data-tab="courses">Liste épicerie</button>
+    <button data-tab="calendrier">Calendrier</button>
+    <button data-tab="sync">Partage</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- TAB: RECETTES -->
+  <section id="tab-recettes" class="tab active">
+    <div class="card">
+      <h2>Recettes</h2>
+      <p class="muted">Chaque plat indique ses ingrédients et le magasin où les acheter. Toi et ton conjoint pouvez tous les deux ajouter, modifier ou supprimer des plats — tout est sauvegardé automatiquement dans ce navigateur.</p>
+      <button class="btn" id="btn-new-recipe">+ Ajouter un plat</button>
+    </div>
+
+    <div class="card" id="recipe-form">
+      <h2 id="recipe-form-title">Nouveau plat</h2>
+      <input type="hidden" id="r-id">
+      <label>Nom du plat</label>
+      <input type="text" id="r-nom" placeholder="ex: Risotto aux champignons">
+
+      <label>Catégorie</label>
+      <select id="r-categorie">
+        <option value="plats">Plats (copieux)</option>
+        <option value="repas">Repas (facile, midi)</option>
+        <option value="desserts">Desserts</option>
+        <option value="boissons">Boissons</option>
+        <option value="autre">Autre (sauce, condiment...)</option>
+      </select>
+
+      <div class="row">
+        <div>
+          <label>Saison</label>
+          <select id="r-saison">
+            <option value="toute">Toute saison</option>
+            <option value="ete">Été / chaud</option>
+            <option value="hiver">Hiver / froid</option>
+          </select>
+        </div>
+        <div>
+          <label>Nombre de personnes (recette de base)</label>
+          <input type="number" id="r-portions" value="4" min="1">
+        </div>
+        <div>
+          <label>Ajouté par (optionnel)</label>
+          <input type="text" id="r-auteur" placeholder="Eva / conjoint...">
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Plutôt pour...</label>
+          <select id="r-moment">
+            <option value="flexible">Midi ou soir</option>
+            <option value="midi">Midi (rapide / à l'avance)</option>
+            <option value="soir">Soir (on peut prendre le temps)</option>
+          </select>
+        </div>
+        <div>
+          <label>Équilibre santé</label>
+          <select id="r-sante">
+            <option value="equilibre">Équilibré</option>
+            <option value="leger">Léger / sain</option>
+            <option value="indulgent">Indulgent (fast-food, féculents+fromage...)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Protéine principale</label>
+          <select id="r-proteine">
+            <option value="viande">Viande</option>
+            <option value="poisson">Poisson</option>
+            <option value="vegetarien">Végétarien</option>
+          </select>
+        </div>
+        <div>
+          <label>Alternative végé possible (optionnel)</label>
+          <select id="r-alt-vege">
+            <option value="">Aucune</option>
+          </select>
+        </div>
+      </div>
+
+      <label>Type de plat</label>
+      <div class="checkboxes" id="r-style">
+        <label><input type="checkbox" value="leger"> Léger / été</label>
+        <label><input type="checkbox" value="copieux"> Copieux / réconfort</label>
+        <label><input type="checkbox" value="rapide"> Rapide</label>
+        <label><input type="checkbox" value="invites"> Idéal invités</label>
+      </div>
+
+      <label>Ingrédients</label>
+      <div id="r-ingredients"></div>
+      <button class="btn small secondary" id="btn-add-ing">+ ajouter un ingrédient</button>
+
+      <div>
+        <button class="btn" id="btn-save-recipe">Enregistrer le plat</button>
+        <button class="btn secondary" id="btn-cancel-recipe">Annuler</button>
+      </div>
+    </div>
+
+    <div id="recipes-list"></div>
+  </section>
+
+  <!-- TAB: QUIZZ -->
+  <section id="tab-quizz" class="tab">
+    <div class="card">
+      <h2>Restes — qu'est-ce qu'il reste ?</h2>
+      <p class="muted">Liste les aliments encore présents chez vous cette semaine. Indique s'ils sont à consommer vite (pour être privilégiés dans les suggestions) ou juste "ok". La quantité est optionnelle mais permet de déduire ce qu'il ne faut plus racheter.</p>
+      <div id="quizz-list"></div>
+      <button class="btn secondary small" id="btn-add-quizz">+ ajouter un aliment</button>
+    </div>
+  </section>
+
+  <!-- TAB: PROGRAMME -->
+  <section id="tab-programme" class="tab">
+    <div class="card">
+      <h2>Cette semaine</h2>
+      <div class="row">
+        <div>
+          <label>Repas de midi à préparer cette semaine</label>
+          <input type="number" id="p-nbmidi" min="0" value="5">
+        </div>
+        <div>
+          <label>Repas du soir à préparer cette semaine</label>
+          <input type="number" id="p-nbsoir" min="0" value="7">
+        </div>
+        <div>
+          <label>Nombre de personnes à table en moyenne</label>
+          <input type="number" id="p-nbpersonnes" min="1" value="2">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>Repas avec viande souhaités cette semaine</label>
+          <input type="number" id="p-nbviande" min="0" value="4">
+        </div>
+      </div>
+      <p class="muted">Ce nombre peut être ajusté chaque semaine (selon envies, cycle, etc.). Au-delà, l'appli propose automatiquement une alternative végétarienne à la place. L'appli répartit aussi les suggestions entre plats de midi (rapides / faits à l'avance) et plats du soir (plus élaborés), et limite le nombre de plats "indulgents" (fast-food, très riches) pour garder un équilibre sur la semaine.</p>
+      <div class="row">
+        <div>
+          <label>Repas avec invités cette semaine ?</label>
+          <input type="number" id="p-invites" min="0" value="0">
+        </div>
+        <div>
+          <label>Tendance météo</label>
+          <select id="p-meteo">
+            <option value="doux">Doux / variable</option>
+            <option value="chaud">Chaud</option>
+            <option value="froid">Froid</option>
+          </select>
+        </div>
+      </div>
+      <label><input type="checkbox" id="p-tempslimite" style="width:auto; margin-right:6px;"> Semaine chargée (privilégier les plats rapides)</label>
+      <label>Notes libres (repas dehors, absences, envies particulières...)</label>
+      <textarea id="p-notes" rows="3" placeholder="ex: mardi soir on mange dehors, jeudi 2 amis à dîner..."></textarea>
+      <button class="btn" id="btn-save-programme">Enregistrer le programme</button>
+    </div>
+  </section>
+
+  <!-- TAB: SUGGESTIONS -->
+  <section id="tab-suggestions" class="tab">
+    <div class="card">
+      <h2>Suggestions de plats pour la semaine</h2>
+      <p class="muted">Basé sur le quizz du frigo, le programme de la semaine et vos plats. Les plats ⭐ sont suggérés en priorité ; coche/décoche librement pour composer ton menu (à faire ensemble avec ton conjoint si besoin).</p>
+      <button class="btn" id="btn-generate-suggestions">Générer les suggestions</button>
+    </div>
+    <div class="card" id="suggestions-midi-card" style="display:none;">
+      <h2>🥪 Repas de midi</h2>
+      <div id="suggestions-list-midi"></div>
+    </div>
+    <div class="card" id="suggestions-soir-card" style="display:none;">
+      <h2>🍽️ Repas du soir</h2>
+      <div id="suggestions-list-soir"></div>
+    </div>
+    <div class="card" id="validate-card" style="display:none;">
+      <button class="btn" id="btn-validate-menu">Valider le menu et générer la liste de courses →</button>
+    </div>
+  </section>
+
+  <!-- TAB: COURSES -->
+  <section id="tab-courses" class="tab">
+    <div class="card no-print">
+      <h2>Liste épicerie</h2>
+      <p class="muted">Générée à partir du menu validé, moins ce qu'il reste déjà (quizz du frigo). Ajoute des extras libres si besoin (pain, lait...).</p>
+      <div class="row">
+        <input type="text" id="extra-nom" placeholder="Article à ajouter (ex: Lait)">
+        <select id="extra-magasin"></select>
+        <button class="btn small secondary" id="btn-add-extra">+ ajouter</button>
+      </div>
+    </div>
+    <div id="courses-list"></div>
+    <div class="card no-print" id="courses-actions" style="display:none;">
+      <button class="btn secondary" id="btn-print">🖨️ Imprimer</button>
+      <button class="btn secondary" id="btn-copy">📋 Copier le texte</button>
+      <button class="btn danger" id="btn-new-week">Nouvelle semaine (garde les plats, efface quizz/menu)</button>
+    </div>
+  </section>
+
+  <!-- TAB: CALENDRIER -->
+  <section id="tab-calendrier" class="tab">
+    <div class="card">
+      <h2>Calendrier</h2>
+      <p class="muted">Historique des menus validés semaine après semaine — pratique pour se souvenir de ce qui a été mangé récemment et éviter les répétitions.</p>
+    </div>
+    <div id="calendrier-list"></div>
+  </section>
+
+  <!-- TAB: SYNC -->
+  <section id="tab-sync" class="tab">
+    <div class="card">
+      <h2>Partage entre appareils (optionnel)</h2>
+      <p class="muted">Par défaut, tes données restent dans ce navigateur. Pour que toi et ton conjoint voyiez les mêmes plats, quizz et menu en direct sur vos appareils — protégés par un mot de passe — connecte l'app à une base de données gratuite (Firebase). À faire une fois, par l'un de vous deux :</p>
+      <ol style="font-size:0.88rem; color:var(--gray); padding-left:20px; margin:10px 0;">
+        <li>Va sur <a href="https://console.firebase.google.com" target="_blank" rel="noopener">console.firebase.google.com</a>, connecte-toi avec un compte Google (gratuit) et crée un projet.</li>
+        <li>Dans le menu de gauche : <strong>Créer une base de données</strong> → <strong>Realtime Database</strong> → démarre en <strong>mode test</strong> (on protège ça juste après).</li>
+        <li>Menu de gauche → <strong>Authentication</strong> → Get started → onglet Sign-in method → active <strong>E-mail/Mot de passe</strong>.</li>
+        <li>Toujours dans Authentication, onglet <strong>Users</strong> → <strong>Add user</strong> → crée un e-mail + mot de passe (le même que ton conjoint utilisera pour se connecter).</li>
+        <li>Retourne dans Realtime Database → onglet <strong>Règles</strong> : remplace le contenu par <code>{"rules": {".read": "auth != null", ".write": "auth != null"}}</code> puis Publier. (Cela remplace le mode test ouvert par une vraie protection par mot de passe.)</li>
+        <li>Paramètres du projet (roue crantée, en haut à gauche) → section <strong>Vos applications</strong> → ajoute une appli Web (icône <code>&lt;/&gt;</code>) → copie l'objet <code>firebaseConfig</code> affiché.</li>
+        <li>Colle-le ci-dessous avec un <strong>code du foyer</strong> (juste pour séparer vos données des autres utilisateurs Firebase, pas une protection en soi) et l'e-mail/mot de passe créés à l'étape 4. Fais pareil sur l'appareil de ton conjoint.</li>
+      </ol>
+      <label>Config Firebase (objet firebaseConfig copié depuis la console)</label>
+      <textarea id="sync-config" rows="5" placeholder='{ apiKey: "...", authDomain: "...", databaseURL: "...", projectId: "..." }'></textarea>
+      <label>Code du foyer</label>
+      <input type="text" id="sync-code" placeholder="ex: collier-blanc-maison">
+      <div class="row">
+        <div>
+          <label>E-mail (créé à l'étape 4)</label>
+          <input type="text" id="sync-email" placeholder="foyer@exemple.com">
+        </div>
+        <div>
+          <label>Mot de passe</label>
+          <input type="password" id="sync-password" placeholder="••••••••">
+        </div>
+      </div>
+      <p id="sync-status" class="muted" style="margin-top:10px;">⚪ Non connecté (données locales uniquement sur cet appareil)</p>
+      <button class="btn" id="btn-sync-connect">Se connecter</button>
+      <button class="btn secondary" id="btn-sync-disconnect">Se déconnecter</button>
+      <p class="muted" style="margin-top:14px;">🔒 Avec les règles ci-dessus, seul quelqu'un connecté avec cet e-mail/mot de passe peut lire ou modifier les données. Le mot de passe n'est pas sauvegardé par l'app — Firebase garde juste ta session ouverte sur cet appareil (comme un site web classique), jusqu'à ce que tu te déconnectes.</p>
+    </div>
+
+    <div class="card">
+      <h2>Intervention ponctuelle de Claude</h2>
+      <p class="muted">Si un jour tu veux que Claude complète des recettes ou touche au menu directement dans tes données partagées, connecte-toi ci-dessus puis clique ce bouton : il génère un accès temporaire (~1h, pas ton mot de passe) à coller dans une conversation. Rien n'est donné en continu — à chaque fois, c'est toi qui choisis de le partager.</p>
+      <button class="btn secondary" id="btn-copy-claude-access">📋 Copier l'accès pour Claude</button>
+    </div>
+  </section>
+
+  <p class="footer-note no-print">Sans connexion (onglet Partage), tes données restent sauvegardées localement dans ce navigateur.</p>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<!-- SDK Firebase (facultatif, utilisé seulement si l'onglet "Partage" est configuré) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+
+<script>
+(function(){
+  "use strict";
+
+  var STORAGE_KEY = "courses_app_data_v1";
+
+  var MAGASINS = [
+    {key:"fromagerie", label:"Fromagerie"},
+    {key:"marche", label:"Marché (fruits & légumes)"},
+    {key:"boucherie", label:"Boucherie"},
+    {key:"poissonnerie", label:"Poissonnerie"},
+    {key:"boulangerie", label:"Boulangerie"},
+    {key:"epicerie", label:"Épicerie"},
+    {key:"epicerie_bio", label:"Épicerie bio"},
+    {key:"autre", label:"Autre"}
+  ];
+
+  function magasinLabel(key){
+    for(var i=0;i<MAGASINS.length;i++){ if(MAGASINS[i].key===key) return MAGASINS[i].label; }
+    return "Autre";
+  }
+
+  function uid(prefix){ return (prefix||"id")+"_"+Math.random().toString(36).slice(2,10); }
+
+  function normalize(s){ return (s||"").toString().trim().toLowerCase(); }
+
+  function defaultRecipes(){
+    function r(nom, saison, style, portions, ings, moment, sante, proteine, categorie){
+      var ingredients = ings.map(function(i){
+        return {nom:i[0], quantite:i[1], unite:i[2], magasin:i[3]};
+      });
+      return {id:uid("r"), nom:nom, saison:saison, style:style, portions:portions, auteur:"",
+        moment: moment||"flexible", sante: sante||"equilibre", proteine: proteine||"vegetarien",
+        categorie: categorie||"repas", alternativeVegeId: "", ingredients:ingredients};
+    }
+    var rostis = r("Röstis maison, œufs au plat et salade", "toute", ["rapide"], 2, [
+        ["Pommes de terre",800,"g","marche"],["Oeufs",4,"pièce","marche"],
+        ["Salade verte",1,"pièce","marche"],["Beurre",50,"g","fromagerie"]
+      ], "flexible", "indulgent", "vegetarien", "repas");
+    var fondue = r("Fondue moitié-moitié", "hiver", ["invites","copieux"], 4, [
+        ["Fromage à fondue moitié-moitié",800,"g","fromagerie"],["Pain",1,"pièce","boulangerie"],
+        ["Vin blanc",1,"bouteille","epicerie"],["Ail",2,"gousse","marche"]
+      ], "soir", "indulgent", "vegetarien", "plats");
+    var pates = r("Salade de pâtes d'été", "ete", ["leger","rapide"], 4, [
+        ["Pâtes",400,"g","epicerie"],["Tomates cerises",300,"g","marche"],
+        ["Mozzarella",200,"g","fromagerie"],["Basilic",1,"botte","marche"]
+      ], "midi", "leger", "vegetarien", "repas");
+    var risotto = r("Risotto aux champignons", "toute", ["copieux"], 4, [
+        ["Riz à risotto",320,"g","epicerie"],["Champignons de Paris",400,"g","marche"],
+        ["Oignon",1,"pièce","marche"],["Parmesan",100,"g","fromagerie"]
+      ], "soir", "equilibre", "vegetarien", "plats");
+    var poulet = r("Poulet rôti et légumes", "toute", ["copieux","invites"], 4, [
+        ["Poulet entier",1,"pièce","boucherie"],["Carottes",500,"g","marche"],
+        ["Pommes de terre",800,"g","marche"],["Oignon",2,"pièce","marche"]
+      ], "soir", "equilibre", "viande", "plats");
+    var soupe = r("Soupe de légumes maison", "hiver", ["leger","rapide"], 4, [
+        ["Poireaux",2,"pièce","marche"],["Carottes",400,"g","marche"],
+        ["Pommes de terre",300,"g","marche"],["Crème fraîche",200,"ml","fromagerie"]
+      ], "flexible", "leger", "vegetarien", "repas");
+    var gratin = r("Gratin de pommes de terre", "hiver", ["copieux"], 4, [
+        ["Pommes de terre",1,"kg","marche"],["Crème entière",400,"ml","fromagerie"],
+        ["Gruyère râpé",200,"g","fromagerie"],["Ail",1,"gousse","marche"]
+      ], "soir", "indulgent", "vegetarien", "plats");
+    var perche = r("Filets de perche meunière et riz", "toute", ["leger","rapide"], 4, [
+        ["Filets de perche",600,"g","poissonnerie"],["Riz",300,"g","epicerie"],
+        ["Citron",2,"pièce","marche"],["Beurre",50,"g","fromagerie"]
+      ], "midi", "leger", "poisson", "repas");
+    var tartare = r("Tartare de bœuf", "toute", ["invites","rapide"], 4, [
+        ["Bœuf pour tartare",600,"g","boucherie"],["Échalote",2,"pièce","marche"],
+        ["Cornichons",1,"bocal","epicerie"],["Pain",1,"pièce","boulangerie"]
+      ], "soir", "equilibre", "viande", "plats");
+    var quiche = r("Quiche lorraine", "toute", ["rapide","copieux"], 4, [
+        ["Pâte brisée",1,"pièce","epicerie"],["Lardons",200,"g","boucherie"],
+        ["Crème fraîche",200,"ml","fromagerie"],["Oeufs",3,"pièce","marche"],
+        ["Gruyère râpé",100,"g","fromagerie"]
+      ], "midi", "indulgent", "viande", "repas");
+    var burgers = r("Burgers maison et frites", "toute", ["invites","copieux"], 4, [
+        ["Pain à burger",4,"pièce","boulangerie"],["Bœuf haché",600,"g","boucherie"],
+        ["Cheddar",4,"tranche","fromagerie"],["Salade",1,"pièce","marche"],
+        ["Tomates",2,"pièce","marche"],["Pommes de terre",800,"g","marche"]
+      ], "soir", "indulgent", "viande", "plats");
+    var curry = r("Curry de légumes et pois chiches", "toute", ["leger","rapide"], 4, [
+        ["Pois chiches",400,"g","epicerie_bio"],["Lait de coco",400,"ml","epicerie_bio"],
+        ["Courgette",2,"pièce","marche"],["Riz basmati",300,"g","epicerie_bio"]
+      ], "flexible", "leger", "vegetarien", "repas");
+    var grecque = r("Salade grecque", "ete", ["leger","rapide"], 4, [
+        ["Concombre",1,"pièce","marche"],["Tomates",3,"pièce","marche"],
+        ["Feta",200,"g","fromagerie"],["Olives noires",100,"g","epicerie"]
+      ], "midi", "leger", "vegetarien", "repas");
+    var raclette = r("Raclette", "hiver", ["invites","copieux"], 4, [
+        ["Fromage à raclette",800,"g","fromagerie"],["Pommes de terre grenaille",1,"kg","marche"],
+        ["Charcuterie assortie",300,"g","boucherie"],["Cornichons",1,"bocal","epicerie"]
+      ], "soir", "indulgent", "viande", "plats");
+
+    var gingerShots = r("Ginger shots maison (curcuma, gingembre, citron)", "toute", ["leger","rapide"], 4, [
+        ["Gingembre frais",100,"g","marche"],["Curcuma frais",50,"g","epicerie_bio"],["Citron",3,"pièce","marche"]
+      ], "flexible", "leger", "vegetarien", "boissons");
+    var iceTeaPeche = r("Ice tea pêche maison", "ete", ["leger","rapide"], 4, [
+        ["Pêches",4,"pièce","marche"],["Thé noir (sachets)",4,"pièce","epicerie"],
+        ["Sucre",50,"g","epicerie"],["Citron",1,"pièce","marche"]
+      ], "flexible", "leger", "vegetarien", "boissons");
+    var balleAss = r("Balle Ass Sandwiches", "toute", ["rapide"], 4, [
+        ["Bœuf ou porc haché",500,"g","boucherie"],["Tomates",3,"pièce","marche"],["Persil",1,"botte","marche"],
+        ["Pain tortilla",8,"pièce","epicerie"],["Oignon",1,"pièce","marche"],["Ail",2,"gousse","marche"],
+        ["Oeufs",2,"pièce","marche"],["Menthe fraîche (facultatif)",1,"botte","marche"],
+        ["Citron",2,"pièce","marche"],["Pois chiches",400,"g","epicerie_bio"]
+      ], "flexible", "equilibre", "viande", "repas");
+    var rostiLard = r("Rösti gratiné (gruyère, lard, cornichons)", "hiver", ["copieux"], 4, [
+        ["Pommes de terre",800,"g","marche"],["Gruyère râpé",150,"g","fromagerie"],
+        ["Lardons",150,"g","boucherie"],["Cornichons",1,"bocal","epicerie"]
+      ], "soir", "indulgent", "viande", "plats");
+    var fondueNature = r("Fondue (fromage, ail, pain, kirsch)", "hiver", ["invites","copieux"], 4, [
+        ["Fromage à fondue",600,"g","fromagerie"],["Ail",1,"gousse","marche"],
+        ["Pain frais",1,"pièce","boulangerie"],["Kirsch",2,"cl","epicerie"]
+      ], "soir", "indulgent", "vegetarien", "plats");
+    var fajitas = r("Fajitas au poulet", "toute", ["copieux"], 4, [
+        ["Pain tortilla",8,"pièce","epicerie"],["Poulet émincé",500,"g","boucherie"],
+        ["Poivrons",3,"pièce","marche"],["Oignons",2,"pièce","marche"],["Tomates",2,"pièce","marche"],
+        ["Citron",1,"pièce","marche"],["Ail",2,"gousse","marche"],["Fromage râpé",150,"g","fromagerie"],
+        ["Crème acidulée",200,"g","fromagerie"]
+      ], "soir", "equilibre", "viande", "plats");
+    var saladeBetterave = r("Salade laitue, betterave, vinaigrette sésame", "toute", ["leger","rapide"], 4, [
+        ["Laitue",1,"pièce","marche"],["Betterave cuite",2,"pièce","marche"],
+        ["Huile de sésame",1,"portion","epicerie_bio"],["Graines de sésame",1,"cs","epicerie_bio"],
+        ["Vinaigre balsamique",1,"portion","epicerie"],["Fromage de chèvre",100,"g","fromagerie"]
+      ], "midi", "leger", "vegetarien", "repas");
+    var curryWurst = r("Curry wurst, frites et salade", "toute", ["rapide"], 4, [
+        ["Saucisses à curry",4,"pièce","boucherie"],["Pommes de terre (frites)",600,"g","marche"],
+        ["Laitue",1,"pièce","marche"],["Ketchup",1,"portion","epicerie"],["Curry en poudre",1,"cs","epicerie"]
+      ], "soir", "indulgent", "viande", "plats");
+    var ramen = r("Ramen (oeuf, bacon, champignons, bok choy)", "hiver", ["copieux"], 4, [
+        ["Oeufs",4,"pièce","marche"],["Bacon",150,"g","boucherie"],["Champignons",200,"g","marche"],
+        ["Bok choy",2,"pièce","marche"],["Nouilles ramen",4,"portion","epicerie"],
+        ["Bouillon",1,"l","epicerie"],["Sauce soja",1,"portion","epicerie"]
+      ], "soir", "equilibre", "viande", "plats");
+    var patesTupperware = r("Pâtes + sauce du congélateur", "toute", ["rapide"], 4, [
+        ["Pâtes",400,"g","epicerie"],["Sauce maison (tupperware)",1,"portion","epicerie"]
+      ], "midi", "equilibre", "vegetarien", "repas");
+    var carbonara = r("Spaghettini carbonara", "toute", ["rapide","copieux"], 4, [
+        ["Spaghettini",400,"g","epicerie"],["Lardons",200,"g","boucherie"],["Oeufs",4,"pièce","marche"],
+        ["Parmesan",80,"g","fromagerie"],["Poivre",1,"pincée","epicerie"]
+      ], "flexible", "indulgent", "viande", "plats");
+    var paniniJambon = r("Panini jambon, mozzarella, tomates séchées", "toute", ["rapide"], 4, [
+        ["Pain panini",4,"pièce","boulangerie"],["Jambon",200,"g","boucherie"],
+        ["Mozzarella",200,"g","fromagerie"],["Tomates séchées",100,"g","epicerie"],
+        ["Roquette",1,"sachet","marche"]
+      ], "midi", "equilibre", "viande", "repas");
+    var paniniVege = r("Panini végétarien (poivrons grillés, mozzarella, pesto)", "toute", ["rapide"], 4, [
+        ["Pain panini",4,"pièce","boulangerie"],["Poivrons",2,"pièce","marche"],
+        ["Mozzarella",200,"g","fromagerie"],["Pesto",1,"portion","epicerie"],["Roquette",1,"sachet","marche"]
+      ], "midi", "equilibre", "vegetarien", "repas");
+    var croqueMonsieur = r("Croque monsieur", "toute", ["rapide","copieux"], 4, [
+        ["Pain de mie",8,"tranche","boulangerie"],["Jambon",200,"g","boucherie"],
+        ["Gruyère râpé",200,"g","fromagerie"],["Beurre",30,"g","fromagerie"],["Moutarde",1,"portion","epicerie"]
+      ], "midi", "indulgent", "viande", "repas");
+    var croqueForestier = r("Croque forestier (végé, champignons)", "toute", ["rapide","copieux"], 4, [
+        ["Pain de mie",8,"tranche","boulangerie"],["Champignons",250,"g","marche"],
+        ["Gruyère râpé",200,"g","fromagerie"],["Beurre",30,"g","fromagerie"]
+      ], "midi", "indulgent", "vegetarien", "repas");
+    var tartePotiron = r("Tarte au potiron", "hiver", ["copieux"], 6, [
+        ["Potiron",800,"g","marche"],["Oeufs",3,"pièce","marche"],["Crème entière",200,"ml","fromagerie"],
+        ["Sucre",100,"g","epicerie"],["Pâte brisée",1,"pièce","epicerie"]
+      ], "flexible", "indulgent", "vegetarien", "desserts");
+    var pestoMaison = r("Pesto maison", "toute", ["rapide"], 4, [
+        ["Basilic frais",30,"g","marche"],["Parmesan râpé",35,"g","fromagerie"],
+        ["Pignons de pin",18,"g","epicerie"],["Ail",1,"gousse","marche"],
+        ["Huile d'olive",40,"cl","epicerie"],["Sel fin",1,"pincée","epicerie"]
+      ], "flexible", "equilibre", "vegetarien", "autre");
+    var couscous = r("Couscous royal (poulet, agneau, merguez)", "toute", ["invites","copieux"], 8, [
+        ["Cuisses de poulet",3,"pièce","boucherie"],["Colliers d'agneau",6,"pièce","boucherie"],
+        ["Merguez",12,"pièce","boucherie"],["Courgettes",4,"pièce","marche"],["Carottes",6,"pièce","marche"],
+        ["Navets",4,"pièce","marche"],["Poivrons rouges",2,"pièce","marche"],["Oignons",6,"pièce","marche"],
+        ["Pois chiches",800,"g","epicerie_bio"],["Concentré de tomates",140,"g","epicerie"],
+        ["Épices à couscous",1,"portion","epicerie"],["Huile",1,"portion","epicerie"],
+        ["Semoule de couscous",1,"kg","epicerie"]
+      ], "soir", "equilibre", "viande", "plats");
+    var pizzaMargherita = r("Pizza margherita (pâte maison)", "toute", ["invites","copieux"], 4, [
+        ["Farine",500,"g","epicerie"],["Levure de boulanger",15,"g","epicerie"],["Lait",25,"cl","fromagerie"],
+        ["Huile d'olive",1,"portion","epicerie"],["Sel",1,"pincée","epicerie"],["Origan",1,"pincée","epicerie"],
+        ["Sauce tomate",300,"g","epicerie"],["Mozzarella",250,"g","fromagerie"],["Basilic frais",1,"botte","marche"]
+      ], "soir", "indulgent", "vegetarien", "plats");
+    var pizzaChorizo = r("Pizza chorizo-poivrons (pâte maison)", "toute", ["invites","copieux"], 4, [
+        ["Farine",500,"g","epicerie"],["Levure de boulanger",15,"g","epicerie"],["Lait",25,"cl","fromagerie"],
+        ["Huile d'olive",1,"portion","epicerie"],["Sel",1,"pincée","epicerie"],["Origan",1,"pincée","epicerie"],
+        ["Sauce tomate",300,"g","epicerie"],["Mozzarella",250,"g","fromagerie"],["Chorizo",150,"g","boucherie"],
+        ["Poivrons",2,"pièce","marche"]
+      ], "soir", "indulgent", "viande", "plats");
+    var fondueVaudoise = r("Fondue vaudoise (gruyère, vacherin, emmenthal)", "hiver", ["invites","copieux"], 4, [
+        ["Mélange de fromages (gruyère, vacherin, emmenthal)",400,"g","fromagerie"],
+        ["Ail",1,"gousse","marche"],["Maïzena",2,"cc","epicerie"],["Vin blanc",1.7,"dl","epicerie"],
+        ["Kirsch",1,"portion","epicerie"],["Poivre",1,"pincée","epicerie"],["Muscade",1,"pincée","epicerie"],
+        ["Champignons",200,"g","marche"]
+      ], "soir", "indulgent", "vegetarien", "plats");
+    var crepes = r("Crêpes (pâte maison)", "toute", ["rapide","invites"], 4, [
+        ["Farine",250,"g","epicerie"],["Oeufs",3,"pièce","marche"],["Lait",50,"cl","fromagerie"],
+        ["Beurre",40,"g","fromagerie"],["Sel",1,"pincée","epicerie"],["Sucre",1,"portion","epicerie"],
+        ["Confiture",1,"pot","epicerie"],["Citron",2,"pièce","marche"]
+      ], "flexible", "indulgent", "vegetarien", "desserts");
+
+    // Alternatives végé suggérées pour les plats à base de viande
+    poulet.alternativeVegeId = risotto.id;
+    tartare.alternativeVegeId = risotto.id;
+    quiche.alternativeVegeId = pates.id;
+    burgers.alternativeVegeId = curry.id;
+    raclette.alternativeVegeId = fondue.id;
+    rostiLard.alternativeVegeId = rostis.id;
+    carbonara.alternativeVegeId = pates.id;
+    paniniJambon.alternativeVegeId = paniniVege.id;
+    croqueMonsieur.alternativeVegeId = croqueForestier.id;
+    pizzaChorizo.alternativeVegeId = pizzaMargherita.id;
+    couscous.alternativeVegeId = curry.id;
+
+    return [
+      rostis, fondue, pates, risotto, poulet, soupe, gratin, perche, tartare, quiche, burgers, curry, grecque, raclette,
+      gingerShots, iceTeaPeche, balleAss, rostiLard, fondueNature, fajitas, saladeBetterave, curryWurst, ramen,
+      patesTupperware, carbonara, paniniJambon, paniniVege, croqueMonsieur, croqueForestier, tartePotiron,
+      pestoMaison, couscous, pizzaMargherita, pizzaChorizo, fondueVaudoise, crepes
+    ];
+  }
+
+  // Version du set de recettes "par défaut" fourni par l'appli.
+  // À incrémenter à chaque fois qu'on ajoute de nouvelles recettes par défaut,
+  // pour qu'elles soient injectées automatiquement chez les personnes qui ont déjà
+  // des données sauvegardées (sans dupliquer ni écraser leurs propres plats/modifs).
+  var CURRENT_DEFAULTS_VERSION = 3;
+
+  function defaultState(){
+    return {
+      recipes: defaultRecipes(),
+      quizz: [],
+      programme: {nbMidi:5, nbSoir:7, nbPersonnes:2, nbInvites:0, nbViandeMax:4, meteo:"doux", tempsLimite:false, notes:""},
+      menuCourant: [],
+      historique: [],
+      extras: [],
+      defaultsVersion: CURRENT_DEFAULTS_VERSION
+    };
+  }
+
+  var state = loadState();
+  saveState(); // persiste immédiatement toute fusion de nouvelles recettes par défaut
+
+  function loadState(){
+    try{
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if(!raw) return defaultState();
+      var parsed = JSON.parse(raw);
+      // Capture la version AVANT toute fusion (la fusion générique ci-dessous
+      // remplirait sinon "defaultsVersion" avec la valeur courante et fausserait la détection).
+      var storedVersion = (typeof parsed.defaultsVersion === "number") ? parsed.defaultsVersion : 1;
+      // merge with defaults to survive future upgrades
+      var base = defaultState();
+      if(!parsed.recipes || parsed.recipes.length===0) parsed.recipes = base.recipes;
+      for(var k in base){ if(!(k in parsed)) parsed[k] = base[k]; }
+      parsed.programme = parsed.programme || {};
+      for(var pk in base.programme){ if(!(pk in parsed.programme)) parsed.programme[pk] = base.programme[pk]; }
+      parsed.recipes.forEach(function(r){
+        if(!r.moment) r.moment = "flexible";
+        if(!r.sante) r.sante = "equilibre";
+        if(!r.proteine) r.proteine = "vegetarien";
+        if(r.alternativeVegeId===undefined) r.alternativeVegeId = "";
+      });
+
+      // Ajoute les nouvelles recettes par défaut ajoutées depuis la dernière visite,
+      // sans dupliquer celles déjà présentes (comparaison par nom).
+      if(storedVersion < 2){
+        var existingNames = {};
+        parsed.recipes.forEach(function(r){ existingNames[normalize(r.nom)] = true; });
+        base.recipes.forEach(function(r){
+          if(!existingNames[normalize(r.nom)]){
+            parsed.recipes.push(r);
+          }
+        });
+      }
+
+      // Ajoute la catégorie (PLATS/REPAS/DESSERTS/BOISSONS/AUTRE) aux recettes qui n'en
+      // ont pas encore : reprend la classification d'origine si le nom correspond à une
+      // recette par défaut connue, sinon "repas" par défaut (sans jamais écraser une
+      // catégorie déjà choisie par l'utilisateur).
+      if(storedVersion < 3){
+        var baseByName = {};
+        base.recipes.forEach(function(r){ baseByName[normalize(r.nom)] = r; });
+        parsed.recipes.forEach(function(r){
+          if(!r.categorie){
+            var match = baseByName[normalize(r.nom)];
+            r.categorie = match ? match.categorie : "repas";
+          }
+        });
+      }
+
+      if(storedVersion < CURRENT_DEFAULTS_VERSION){
+        parsed.defaultsVersion = CURRENT_DEFAULTS_VERSION;
+      }
+
+      return parsed;
+    }catch(e){
+      return defaultState();
+    }
+  }
+
+  var storageWarned = false;
+  function saveState(){
+    try{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }catch(e){
+      if(!storageWarned){
+        storageWarned = true;
+        toast("Sauvegarde locale indisponible dans ce navigateur : tes données ne seront pas gardées après fermeture.");
+      }
+    }
+    pushToSync();
+  }
+
+  // ---------- SYNC (optionnel, Firebase Realtime Database) ----------
+  var SYNC_CONFIG_KEY = "courses_app_sync_config_v1";
+  var syncApp = null, syncDb = null, syncRef = null;
+  var applyingRemoteUpdate = false;
+  var syncSaveTimer = null;
+
+  // Extrait et parse un objet firebaseConfig depuis un texte collé qui peut contenir
+  // du code autour (const ... = , point-virgule, imports, autre code après...).
+  // Tolère aussi les guillemets "intelligents" (typographiques) que certains éditeurs
+  // substituent automatiquement au copier-coller.
+  function parseFirebaseConfigText(raw){
+    if(!raw) throw new Error("Champ vide.");
+    var normalized = raw
+      .replace(/[“”„″]/g, '"')
+      .replace(/[‘’‚′]/g, "'");
+    // On s'ancre sur "apiKey" (toujours présent dans un firebaseConfig) plutôt que sur la
+    // toute première accolade, pour ignorer un éventuel "import { initializeApp } from ...;"
+    // collé au-dessus, dont l'accolade serait sinon repérée par erreur.
+    var anchor = normalized.indexOf("apiKey");
+    var start = anchor === -1 ? normalized.indexOf("{") : normalized.lastIndexOf("{", anchor);
+    if(start === -1) throw new Error("Aucune accolade { trouvée — colle l'objet firebaseConfig complet (avec apiKey, databaseURL, etc.).");
+    // Comptage d'accolades pour isoler exactement le premier objet { ... }, même s'il y a
+    // du code après (ex: "const app = initializeApp(firebaseConfig);").
+    var depth = 0, end = -1;
+    for(var i = start; i < normalized.length; i++){
+      if(normalized[i] === "{") depth++;
+      else if(normalized[i] === "}"){
+        depth--;
+        if(depth === 0){ end = i; break; }
+      }
+    }
+    if(end === -1) throw new Error("Accolades non équilibrées — vérifie que tout l'objet a bien été copié.");
+    var objText = normalized.slice(start, end+1);
+    var cfgObj;
+    try{
+      cfgObj = (new Function("return (" + objText + ")"))();
+    }catch(e){
+      throw new Error("Syntaxe JS invalide (" + e.message + ")");
+    }
+    if(!cfgObj || typeof cfgObj !== "object") throw new Error("Le texte collé n'est pas un objet.");
+    if(!cfgObj.databaseURL) throw new Error("L'objet ne contient pas de champ databaseURL — vérifie que Realtime Database est bien créée avant de copier la config.");
+    return cfgObj;
+  }
+
+  function loadSyncConfig(){
+    try{
+      var raw = localStorage.getItem(SYNC_CONFIG_KEY);
+      return raw ? JSON.parse(raw) : null;
+    }catch(e){ return null; }
+  }
+  function saveSyncConfig(cfg){
+    try{ localStorage.setItem(SYNC_CONFIG_KEY, JSON.stringify(cfg)); }catch(e){}
+  }
+  function clearSyncConfig(){
+    try{ localStorage.removeItem(SYNC_CONFIG_KEY); }catch(e){}
+  }
+
+  function setSyncStatus(status, detail){
+    var el = document.getElementById("sync-status");
+    if(!el) return;
+    var map = {
+      off: "⚪ Non connecté (données locales uniquement sur cet appareil)",
+      connecting: "🟡 Connexion en cours...",
+      on: "🟢 Connecté — synchronisé avec ton foyer",
+      error: "🔴 Erreur de connexion : " + (detail||"")
+    };
+    el.textContent = map[status] || status;
+  }
+
+  function renderAll(){
+    renderRecipes();
+    renderQuizz();
+    renderProgramme();
+    renderCalendrier();
+    if(state.menuCourant && state.menuCourant.length){
+      generateShoppingList();
+    } else {
+      currentNeeded = {};
+      renderShoppingList();
+    }
+  }
+
+  function renderCalendrier(){
+    var wrap = document.getElementById("calendrier-list");
+    if(!wrap) return;
+    if(!state.historique || state.historique.length===0){
+      wrap.innerHTML = '<p class="empty">Aucun menu validé pour l\'instant. Valide un menu dans Suggestions pour commencer ton calendrier.</p>';
+      return;
+    }
+    wrap.innerHTML = "";
+    state.historique.slice().reverse().forEach(function(week){
+      var items = week.items || (week.recipeIds||[]).map(function(id){ return {recipeId:id, portions:null, moment:"flexible"}; });
+      var card = document.createElement("div");
+      card.className = "card";
+      var byMoment = {midi:[], soir:[], flexible:[]};
+      items.forEach(function(it){
+        var recipe = state.recipes.find(function(r){ return r.id===it.recipeId; });
+        var nom = recipe ? recipe.nom : "(plat supprimé depuis)";
+        var group = byMoment[it.moment] ? it.moment : "flexible";
+        byMoment[group].push(nom + (it.portions ? " — " + it.portions + " pers." : ""));
+      });
+      var html = "<strong>" + escapeHtml(week.date) + "</strong>";
+      if(byMoment.midi.length){
+        html += '<p class="muted" style="margin:6px 0 2px 0;">🥪 Midi : ' + byMoment.midi.map(escapeHtml).join(", ") + "</p>";
+      }
+      if(byMoment.soir.length){
+        html += '<p class="muted" style="margin:2px 0;">🍽️ Soir : ' + byMoment.soir.map(escapeHtml).join(", ") + "</p>";
+      }
+      if(byMoment.flexible.length){
+        html += '<p class="muted" style="margin:2px 0;">Autres : ' + byMoment.flexible.map(escapeHtml).join(", ") + "</p>";
+      }
+      card.innerHTML = html;
+      wrap.appendChild(card);
+    });
+  }
+
+  function attachSyncDbRef(cfg){
+    syncDb = syncApp.database();
+    var safeCode = String(cfg.code).trim().replace(/[.#$\[\]\/\s]/g, "_");
+    syncRef = syncDb.ref("households/"+safeCode+"/data");
+    syncRef.on("value", function(snapshot){
+      var remote = snapshot.val();
+      if(remote){
+        applyingRemoteUpdate = true;
+        state = remote;
+        renderAll();
+        saveState();
+        applyingRemoteUpdate = false;
+      } else {
+        syncRef.set(state);
+      }
+      setSyncStatus("on");
+    }, function(err){
+      setSyncStatus("error", err && err.message ? err.message : String(err));
+    });
+  }
+
+  function initSync(cfg){
+    if(typeof firebase === "undefined"){
+      setSyncStatus("error", "Firebase n'a pas pu se charger (vérifie ta connexion internet et réessaie).");
+      return;
+    }
+    if(!cfg || !cfg.firebaseConfig || !cfg.code){
+      setSyncStatus("error", "Configuration incomplète.");
+      return;
+    }
+    try{
+      setSyncStatus("connecting");
+      if(syncRef){ try{ syncRef.off(); }catch(e){} }
+      syncApp = firebase.initializeApp(cfg.firebaseConfig, "courses-app-"+Date.now());
+      var auth = syncApp.auth();
+      if(cfg.password){
+        // Connexion explicite avec e-mail + mot de passe (clic sur "Se connecter").
+        auth.signInWithEmailAndPassword(cfg.email, cfg.password).then(function(){
+          attachSyncDbRef(cfg);
+        }).catch(function(err){
+          setSyncStatus("error", err && err.message ? err.message : String(err));
+        });
+      } else {
+        // Reconnexion automatique au chargement : on ne stocke jamais le mot de passe,
+        // Firebase restaure lui-même la session déjà ouverte sur cet appareil.
+        auth.onAuthStateChanged(function(user){
+          if(user){
+            attachSyncDbRef(cfg);
+          } else {
+            setSyncStatus("error", "Session expirée — reconnecte-toi avec ton e-mail et mot de passe ci-dessus.");
+          }
+        });
+      }
+    }catch(e){
+      setSyncStatus("error", e && e.message ? e.message : String(e));
+    }
+  }
+
+  function pushToSync(){
+    if(!syncRef || applyingRemoteUpdate) return;
+    clearTimeout(syncSaveTimer);
+    syncSaveTimer = setTimeout(function(){
+      try{ syncRef.set(state); }catch(e){ setSyncStatus("error", e && e.message ? e.message : String(e)); }
+    }, 400);
+  }
+
+  document.getElementById("btn-sync-connect").addEventListener("click", function(){
+    var raw = document.getElementById("sync-config").value.trim();
+    var code = document.getElementById("sync-code").value.trim();
+    var email = document.getElementById("sync-email").value.trim();
+    var password = document.getElementById("sync-password").value;
+    if(!raw || !code || !email || !password){
+      toast("Remplis la config Firebase, le code du foyer, l'e-mail et le mot de passe.");
+      return;
+    }
+    var cfgObj;
+    try{
+      cfgObj = parseFirebaseConfigText(raw);
+    }catch(e){
+      toast("Config Firebase invalide : " + (e && e.message ? e.message : e));
+      return;
+    }
+    // Le mot de passe n'est jamais sauvegardé par l'app : Firebase garde la session ouverte.
+    saveSyncConfig({firebaseConfig: cfgObj, code: code, email: email});
+    initSync({firebaseConfig: cfgObj, code: code, email: email, password: password});
+    document.getElementById("sync-password").value = "";
+  });
+
+  document.getElementById("btn-copy-claude-access").addEventListener("click", function(){
+    var cfg = loadSyncConfig();
+    if(!cfg || !cfg.firebaseConfig || !cfg.code){
+      toast("Connecte d'abord la synchro Firebase ci-dessus avant de partager l'accès.");
+      return;
+    }
+    if(!syncApp || !syncApp.auth().currentUser){
+      toast("Connecte-toi d'abord (bouton Se connecter) avant de copier l'accès.");
+      return;
+    }
+    syncApp.auth().currentUser.getIdToken().then(function(token){
+      var dbUrl = cfg.firebaseConfig.databaseURL || "(databaseURL absente de ta config)";
+      var safeCode = String(cfg.code).trim().replace(/[.#$\[\]\/\s]/g, "_");
+      var path = "households/" + safeCode + "/data";
+      var text =
+        "Accès ponctuel à mes données BRAD (app de listes de courses) :\n" +
+        "- Base Firebase Realtime Database : " + dbUrl + "\n" +
+        "- Chemin des données : " + path + "\n" +
+        "- Jeton d'accès temporaire (valable ~1h, ce n'est PAS mon mot de passe) : " + token + "\n" +
+        "- Lecture : GET " + dbUrl + "/" + path + ".json?auth=" + token + "\n" +
+        "- Écriture (fusion) : PATCH " + dbUrl + "/" + path + ".json?auth=" + token + " avec le JSON à modifier\n" +
+        "- Écriture (remplacement complet) : PUT " + dbUrl + "/" + path + ".json?auth=" + token + " avec l'objet complet\n" +
+        "- Format des données : { recipes:[{id,nom,saison,style[],portions,moment,sante,proteine,categorie,alternativeVegeId,ingredients:[{nom,quantite,unite,magasin}]}], quizz:[...], programme:{...}, menuCourant:[...], historique:[{date,items:[{recipeId,portions,moment}]}], extras:[...] }\n" +
+        "Le jeton expire tout seul après ~1h, inutile de le révoquer après coup.";
+      copyToClipboard(text);
+    }).catch(function(e){
+      toast("Impossible de générer l'accès : " + (e && e.message ? e.message : e));
+    });
+  });
+
+  document.getElementById("btn-sync-disconnect").addEventListener("click", function(){
+    if(syncRef){ try{ syncRef.off(); }catch(e){} }
+    if(syncApp){ try{ syncApp.auth().signOut(); }catch(e){} }
+    syncRef = null; syncDb = null; syncApp = null;
+    clearSyncConfig();
+    setSyncStatus("off");
+    toast("Déconnecté. Tes données restent en local sur cet appareil.");
+  });
+
+  function toast(msg){
+    var t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    setTimeout(function(){ t.classList.remove("show"); }, 2200);
+  }
+
+  // ---------- TABS ----------
+  document.getElementById("tabs").addEventListener("click", function(e){
+    var btn = e.target.closest("button[data-tab]");
+    if(!btn) return;
+    document.querySelectorAll("nav button").forEach(function(b){ b.classList.remove("active"); });
+    document.querySelectorAll(".tab").forEach(function(t){ t.classList.remove("active"); });
+    btn.classList.add("active");
+    document.getElementById("tab-"+btn.dataset.tab).classList.add("active");
+  });
+
+  // ---------- RECIPES ----------
+  var editingRecipeId = null;
+
+  function magasinOptionsHtml(selected){
+    return MAGASINS.map(function(m){
+      return '<option value="'+m.key+'"'+(m.key===selected?" selected":"")+'>'+m.label+'</option>';
+    }).join("");
+  }
+
+  function refreshAltVegeOptions(excludeId){
+    var sel = document.getElementById("r-alt-vege");
+    var vegeRecipes = state.recipes.filter(function(rc){
+      return rc.proteine === "vegetarien" && rc.id !== excludeId;
+    });
+    var html = '<option value="">Aucune</option>';
+    vegeRecipes.forEach(function(rc){
+      html += '<option value="'+rc.id+'">'+escapeHtml(rc.nom)+'</option>';
+    });
+    sel.innerHTML = html;
+  }
+
+  function addIngredientRow(ing){
+    ing = ing || {nom:"", quantite:"", unite:"", magasin:"epicerie"};
+    var wrap = document.getElementById("r-ingredients");
+    var row = document.createElement("div");
+    row.className = "ing-row";
+    row.innerHTML =
+      '<input class="nom" type="text" placeholder="Ingrédient" value="'+escapeAttr(ing.nom)+'">'+
+      '<input class="qte" type="number" step="any" placeholder="Qté" value="'+escapeAttr(ing.quantite)+'">'+
+      '<input class="unite" type="text" placeholder="unité (g, pièce...)" value="'+escapeAttr(ing.unite)+'">'+
+      '<select class="magasin">'+magasinOptionsHtml(ing.magasin)+'</select>'+
+      '<button type="button" class="remove-x" title="Supprimer">✕</button>';
+    row.querySelector(".remove-x").addEventListener("click", function(){ row.remove(); });
+    wrap.appendChild(row);
+  }
+
+  function escapeAttr(v){
+    return (v===undefined||v===null?"":String(v)).replace(/"/g,"&quot;");
+  }
+  function escapeHtml(v){
+    var d = document.createElement("div");
+    d.textContent = (v===undefined||v===null?"":String(v));
+    return d.innerHTML;
+  }
+
+  function openRecipeForm(recipe){
+    editingRecipeId = recipe ? recipe.id : null;
+    document.getElementById("recipe-form-title").textContent = recipe ? "Modifier le plat" : "Nouveau plat";
+    document.getElementById("r-id").value = recipe ? recipe.id : "";
+    document.getElementById("r-nom").value = recipe ? recipe.nom : "";
+    document.getElementById("r-saison").value = recipe ? recipe.saison : "toute";
+    document.getElementById("r-portions").value = recipe ? recipe.portions : 4;
+    document.getElementById("r-auteur").value = recipe ? (recipe.auteur||"") : "";
+    document.getElementById("r-categorie").value = recipe ? (recipe.categorie||"repas") : "repas";
+    document.getElementById("r-moment").value = recipe ? (recipe.moment||"flexible") : "flexible";
+    document.getElementById("r-sante").value = recipe ? (recipe.sante||"equilibre") : "equilibre";
+    document.getElementById("r-proteine").value = recipe ? (recipe.proteine||"vegetarien") : "vegetarien";
+    refreshAltVegeOptions(recipe ? recipe.id : null);
+    document.getElementById("r-alt-vege").value = recipe ? (recipe.alternativeVegeId||"") : "";
+    document.querySelectorAll("#r-style input").forEach(function(cb){
+      cb.checked = recipe ? recipe.style.indexOf(cb.value) !== -1 : false;
+    });
+    document.getElementById("r-ingredients").innerHTML = "";
+    if(recipe && recipe.ingredients.length){
+      recipe.ingredients.forEach(addIngredientRow);
+    } else {
+      addIngredientRow(); addIngredientRow();
+    }
+    document.getElementById("recipe-form").classList.add("open");
+    document.getElementById("recipe-form").scrollIntoView({behavior:"smooth", block:"start"});
+  }
+
+  function closeRecipeForm(){
+    document.getElementById("recipe-form").classList.remove("open");
+    editingRecipeId = null;
+  }
+
+  document.getElementById("btn-new-recipe").addEventListener("click", function(){ openRecipeForm(null); });
+  document.getElementById("btn-cancel-recipe").addEventListener("click", closeRecipeForm);
+  document.getElementById("btn-add-ing").addEventListener("click", function(){ addIngredientRow(); });
+
+  document.getElementById("btn-save-recipe").addEventListener("click", function(){
+    var nom = document.getElementById("r-nom").value.trim();
+    if(!nom){ toast("Donne un nom au plat."); return; }
+    var style = Array.prototype.slice.call(document.querySelectorAll("#r-style input:checked")).map(function(cb){ return cb.value; });
+    var ingredients = [];
+    document.querySelectorAll("#r-ingredients .ing-row").forEach(function(row){
+      var n = row.querySelector(".nom").value.trim();
+      if(!n) return;
+      ingredients.push({
+        nom:n,
+        quantite: parseFloat(row.querySelector(".qte").value) || 0,
+        unite: row.querySelector(".unite").value.trim(),
+        magasin: row.querySelector(".magasin").value
+      });
+    });
+    if(ingredients.length===0){ toast("Ajoute au moins un ingrédient."); return; }
+    var recipe = {
+      id: editingRecipeId || uid("r"),
+      nom: nom,
+      saison: document.getElementById("r-saison").value,
+      style: style,
+      portions: parseFloat(document.getElementById("r-portions").value) || 4,
+      auteur: document.getElementById("r-auteur").value.trim(),
+      categorie: document.getElementById("r-categorie").value,
+      moment: document.getElementById("r-moment").value,
+      sante: document.getElementById("r-sante").value,
+      proteine: document.getElementById("r-proteine").value,
+      alternativeVegeId: document.getElementById("r-alt-vege").value,
+      ingredients: ingredients
+    };
+    if(editingRecipeId){
+      var idx = state.recipes.findIndex(function(r){ return r.id===editingRecipeId; });
+      if(idx!==-1) state.recipes[idx] = recipe;
+    } else {
+      state.recipes.push(recipe);
+    }
+    saveState();
+    closeRecipeForm();
+    renderRecipes();
+    toast("Plat enregistré.");
+  });
+
+  function styleLabel(s){
+    return {leger:"Léger / été", copieux:"Copieux", rapide:"Rapide", invites:"Idéal invités"}[s] || s;
+  }
+  function saisonLabel(s){
+    return {toute:"Toute saison", ete:"Été", hiver:"Hiver"}[s] || s;
+  }
+  function momentLabel(m){
+    return {midi:"🥪 Midi", soir:"🍽️ Soir", flexible:"Midi ou soir"}[m] || m;
+  }
+  function santeLabel(s){
+    return {leger:"Léger / sain", equilibre:"Équilibré", indulgent:"Indulgent"}[s] || s;
+  }
+  function proteineLabel(p){
+    return {viande:"🥩 Viande", poisson:"🐟 Poisson", vegetarien:"🌱 Végétarien"}[p] || p;
+  }
+  var CATEGORIES_ORDRE = ["plats","repas","desserts","boissons","autre"];
+  function categorieLabel(c){
+    return {plats:"PLATS", repas:"REPAS", desserts:"DESSERTS", boissons:"BOISSONS", autre:"AUTRE"}[c] || (c||"REPAS").toUpperCase();
+  }
+
+  function renderRecipeCard(recipe){
+    var card = document.createElement("div");
+    card.className = "recipe-card";
+    var ingHtml = recipe.ingredients.map(function(i){
+      return escapeHtml(i.nom)+" ("+escapeHtml(i.quantite)+" "+escapeHtml(i.unite)+" — "+magasinLabel(i.magasin)+")";
+    }).join(", ");
+    card.innerHTML =
+      '<strong>'+escapeHtml(recipe.nom)+'</strong>'+
+      (recipe.auteur ? ' <span class="tag">'+escapeHtml(recipe.auteur)+'</span>' : '')+
+      '<div>'+
+        '<span class="tag">'+saisonLabel(recipe.saison)+'</span>'+
+        '<span class="tag">'+momentLabel(recipe.moment)+'</span>'+
+        '<span class="tag">'+santeLabel(recipe.sante)+'</span>'+
+        '<span class="tag">'+proteineLabel(recipe.proteine)+'</span>'+
+        recipe.style.map(function(s){ return '<span class="tag">'+styleLabel(s)+'</span>'; }).join("")+
+        '<span class="tag">'+recipe.portions+' pers.</span>'+
+      '</div>'+
+      (recipe.proteine==="viande" && recipe.alternativeVegeId ? (function(){
+        var alt = state.recipes.find(function(rc){ return rc.id===recipe.alternativeVegeId; });
+        return alt ? '<p class="muted" style="margin:4px 0;">🌱 Alternative végé possible : '+escapeHtml(alt.nom)+'</p>' : '';
+      })() : '')+
+      '<p class="muted" style="margin:8px 0;">'+ingHtml+'</p>'+
+      '<button class="btn small secondary btn-edit-recipe">Modifier</button> '+
+      '<button class="btn small danger btn-delete-recipe">Supprimer</button>';
+    card.querySelector(".btn-edit-recipe").addEventListener("click", function(){ openRecipeForm(recipe); });
+    card.querySelector(".btn-delete-recipe").addEventListener("click", function(){
+      if(confirm('Supprimer "'+recipe.nom+'" ?')){
+        state.recipes = state.recipes.filter(function(r){ return r.id!==recipe.id; });
+        saveState();
+        renderRecipes();
+      }
+    });
+    return card;
+  }
+
+  function renderRecipes(){
+    var wrap = document.getElementById("recipes-list");
+    if(state.recipes.length===0){
+      wrap.innerHTML = '<p class="empty">Aucun plat pour le moment.</p>';
+      return;
+    }
+    wrap.innerHTML = "";
+    var byCat = {};
+    state.recipes.forEach(function(r){
+      var c = r.categorie || "repas";
+      byCat[c] = byCat[c] || [];
+      byCat[c].push(r);
+    });
+    CATEGORIES_ORDRE.forEach(function(cat){
+      var list = byCat[cat];
+      if(!list || list.length===0) return;
+      var section = document.createElement("div");
+      section.className = "shop-group";
+      var h3 = document.createElement("h3");
+      h3.textContent = categorieLabel(cat) + " (" + list.length + ")";
+      section.appendChild(h3);
+      list.slice().sort(function(a,b){ return a.nom.localeCompare(b.nom); }).forEach(function(recipe){
+        section.appendChild(renderRecipeCard(recipe));
+      });
+      wrap.appendChild(section);
+    });
+  }
+
+  // ---------- QUIZZ ----------
+  function renderQuizz(){
+    var wrap = document.getElementById("quizz-list");
+    wrap.innerHTML = "";
+    if(state.quizz.length===0){
+      wrap.innerHTML = '<p class="empty">Aucun aliment ajouté. Clique sur "+ ajouter un aliment".</p>';
+    }
+    state.quizz.forEach(function(item, idx){
+      var row = document.createElement("div");
+      row.className = "quizz-row";
+      row.innerHTML =
+        '<input type="text" class="q-nom" placeholder="Aliment" value="'+escapeAttr(item.nom)+'" style="flex:2;">'+
+        '<input type="number" step="any" class="q-qte" placeholder="Qté (option.)" value="'+escapeAttr(item.quantite||"")+'" style="flex:1;">'+
+        '<input type="text" class="q-unite" placeholder="unité" value="'+escapeAttr(item.unite||"")+'" style="flex:1;">'+
+        '<div class="pill-select">'+
+          '<button type="button" class="pill urgent'+(item.etat==="urgent"?" active":"")+'">À consommer vite</button>'+
+          '<button type="button" class="pill ok'+(item.etat==="ok"?" active":"")+'">OK</button>'+
+        '</div>'+
+        '<button type="button" class="remove-x">✕</button>';
+      row.querySelector(".q-nom").addEventListener("input", function(e){ item.nom = e.target.value; saveState(); });
+      row.querySelector(".q-qte").addEventListener("input", function(e){ item.quantite = parseFloat(e.target.value)||0; saveState(); });
+      row.querySelector(".q-unite").addEventListener("input", function(e){ item.unite = e.target.value; saveState(); });
+      row.querySelector(".pill.urgent").addEventListener("click", function(){ item.etat="urgent"; saveState(); renderQuizz(); });
+      row.querySelector(".pill.ok").addEventListener("click", function(){ item.etat="ok"; saveState(); renderQuizz(); });
+      row.querySelector(".remove-x").addEventListener("click", function(){
+        state.quizz.splice(idx,1); saveState(); renderQuizz();
+      });
+      wrap.appendChild(row);
+    });
+  }
+
+  document.getElementById("btn-add-quizz").addEventListener("click", function(){
+    state.quizz.push({nom:"", quantite:0, unite:"", etat:"ok"});
+    saveState();
+    renderQuizz();
+  });
+
+  // ---------- PROGRAMME ----------
+  function renderProgramme(){
+    var p = state.programme;
+    document.getElementById("p-nbmidi").value = p.nbMidi;
+    document.getElementById("p-nbsoir").value = p.nbSoir;
+    document.getElementById("p-nbpersonnes").value = p.nbPersonnes;
+    document.getElementById("p-invites").value = p.nbInvites;
+    document.getElementById("p-nbviande").value = p.nbViandeMax;
+    document.getElementById("p-meteo").value = p.meteo;
+    document.getElementById("p-tempslimite").checked = !!p.tempsLimite;
+    document.getElementById("p-notes").value = p.notes || "";
+  }
+
+  document.getElementById("btn-save-programme").addEventListener("click", function(){
+    state.programme = {
+      nbMidi: parseFloat(document.getElementById("p-nbmidi").value)||0,
+      nbSoir: parseFloat(document.getElementById("p-nbsoir").value)||0,
+      nbPersonnes: parseFloat(document.getElementById("p-nbpersonnes").value)||2,
+      nbInvites: parseFloat(document.getElementById("p-invites").value)||0,
+      nbViandeMax: parseFloat(document.getElementById("p-nbviande").value)||0,
+      meteo: document.getElementById("p-meteo").value,
+      tempsLimite: document.getElementById("p-tempslimite").checked,
+      notes: document.getElementById("p-notes").value
+    };
+    saveState();
+    toast("Programme enregistré.");
+  });
+
+  // ---------- SUGGESTIONS ----------
+  function quizzMap(){
+    var map = {};
+    state.quizz.forEach(function(item){
+      if(item.nom) map[normalize(item.nom)] = item.etat;
+    });
+    return map;
+  }
+
+  function weekRecipeIds(week){
+    // Compatible avec l'ancien format ({recipeIds:[...]}) et le nouveau ({items:[{recipeId,...}]})
+    if(week.items) return week.items.map(function(i){ return i.recipeId; });
+    return week.recipeIds || [];
+  }
+
+  function recentRecipeIds(){
+    var ids = [];
+    state.historique.slice(-2).forEach(function(week){
+      ids = ids.concat(weekRecipeIds(week));
+    });
+    return ids;
+  }
+
+  function computeScore(recipe, qMap, programme, recentIds, moment){
+    var score = 0;
+    recipe.ingredients.forEach(function(ing){
+      var etat = qMap[normalize(ing.nom)];
+      if(etat==="urgent") score += 3;
+      else if(etat==="ok") score += 1;
+    });
+    if(programme.meteo==="chaud" && recipe.saison==="ete") score += 2;
+    if(programme.meteo==="froid" && recipe.saison==="hiver") score += 2;
+    if(programme.nbInvites>0 && recipe.style.indexOf("invites")!==-1) score += 2;
+    if(programme.tempsLimite && recipe.style.indexOf("rapide")!==-1) score += 2;
+    if(moment==="midi" && recipe.style.indexOf("rapide")!==-1) score += 1;
+    if(recentIds.indexOf(recipe.id)!==-1) score -= 3;
+    return score;
+  }
+
+  // Sélectionne jusqu'à n plats en limitant le nombre de plats "indulgents"
+  // (fast-food / très riches) pour garder un équilibre santé sur la semaine.
+  function selectWithHealthCap(sortedList, n, indulgentCap){
+    var chosen = [];
+    var skipped = [];
+    var indulgentCount = 0;
+    sortedList.forEach(function(s){
+      if(chosen.length >= n){ skipped.push(s); return; }
+      if(s.recipe.sante === "indulgent" && indulgentCount >= indulgentCap){
+        skipped.push(s);
+        return;
+      }
+      chosen.push(s);
+      if(s.recipe.sante === "indulgent") indulgentCount++;
+    });
+    var i = 0;
+    while(chosen.length < n && i < skipped.length){
+      chosen.push(skipped[i]);
+      i++;
+    }
+    return chosen;
+  }
+
+  function eligibleFor(recipe, moment){
+    // Seuls les "plats" et "repas" comptent comme repas de midi/soir dans les suggestions ;
+    // desserts, boissons et autres (sauces...) restent dans Recettes mais ne sont pas proposés ici.
+    var cat = recipe.categorie || "repas";
+    if(cat !== "plats" && cat !== "repas") return false;
+    return recipe.moment === moment || recipe.moment === "flexible";
+  }
+
+  // Ramène le nombre de plats "viande" choisis à maxViande, en les remplaçant
+  // par leur alternative végé (ou, à défaut, le meilleur plat non-viande disponible).
+  function enforceMeatCap(chosenMidi, chosenSoir, poolMidi, poolSoir, maxViande){
+    var combined = chosenMidi.map(function(s){ return {s:s, group:"midi"}; })
+      .concat(chosenSoir.map(function(s){ return {s:s, group:"soir"}; }));
+    var viandeItems = combined.filter(function(c){ return c.s.recipe.proteine === "viande"; });
+    if(viandeItems.length <= maxViande) return {chosenMidi:chosenMidi, chosenSoir:chosenSoir};
+
+    viandeItems.sort(function(a,b){ return a.s.score - b.s.score; }); // les moins bien notés d'abord
+    var nbToReplace = viandeItems.length - maxViande;
+    var toReplace = viandeItems.slice(0, nbToReplace);
+
+    toReplace.forEach(function(item){
+      var pool = item.group === "midi" ? poolMidi : poolSoir;
+      var chosenList = item.group === "midi" ? chosenMidi : chosenSoir;
+      var altId = item.s.recipe.alternativeVegeId;
+      var alt = null;
+      if(altId){
+        alt = pool.find(function(p){ return p.recipe.id === altId && chosenList.indexOf(p) === -1; });
+      }
+      if(!alt){
+        alt = pool.filter(function(p){
+          return p.recipe.proteine !== "viande" && chosenList.indexOf(p) === -1;
+        }).sort(function(a,b){ return b.score - a.score; })[0];
+      }
+      if(alt){
+        var idx = chosenList.indexOf(item.s);
+        if(idx !== -1) chosenList[idx] = alt;
+      }
+      // si aucune alternative disponible dans ce plat, on garde la viande (pas d'autre option)
+    });
+    return {chosenMidi:chosenMidi, chosenSoir:chosenSoir};
+  }
+
+  var suggMidi = [];
+  var suggSoir = [];
+  var checkedSlots = {};
+  var portionsSlots = {};
+
+  document.getElementById("btn-generate-suggestions").addEventListener("click", function(){
+    if(state.recipes.length===0){ toast("Ajoute d'abord des plats dans l'onglet Mes plats."); return; }
+    var qMap = quizzMap();
+    var recentIds = recentRecipeIds();
+
+    suggMidi = state.recipes.filter(function(r){ return eligibleFor(r,"midi"); })
+      .map(function(r){ return {recipe:r, score: computeScore(r, qMap, state.programme, recentIds, "midi")}; });
+    suggMidi.sort(function(a,b){ return b.score-a.score; });
+
+    suggSoir = state.recipes.filter(function(r){ return eligibleFor(r,"soir"); })
+      .map(function(r){ return {recipe:r, score: computeScore(r, qMap, state.programme, recentIds, "soir")}; });
+    suggSoir.sort(function(a,b){ return b.score-a.score; });
+
+    var nbMidi = Math.max(Math.round(state.programme.nbMidi||0), 0);
+    var nbSoir = Math.max(Math.round(state.programme.nbSoir||0), 0);
+    var capMidi = Math.max(1, Math.round(nbMidi/3));
+    var capSoir = Math.max(1, Math.round(nbSoir/3));
+
+    var chosenMidi = nbMidi>0 ? selectWithHealthCap(suggMidi, Math.min(nbMidi, suggMidi.length), capMidi) : [];
+    var chosenSoir = nbSoir>0 ? selectWithHealthCap(suggSoir, Math.min(nbSoir, suggSoir.length), capSoir) : [];
+
+    var maxViande = Math.max(0, Math.round(state.programme.nbViandeMax||0));
+    var afterMeatCap = enforceMeatCap(chosenMidi, chosenSoir, suggMidi, suggSoir, maxViande);
+    chosenMidi = afterMeatCap.chosenMidi;
+    chosenSoir = afterMeatCap.chosenSoir;
+
+    var chosenMidiIds = chosenMidi.map(function(s){ return s.recipe.id; });
+    var chosenSoirIds = chosenSoir.map(function(s){ return s.recipe.id; });
+
+    checkedSlots = {};
+    portionsSlots = {};
+    var defaultPersonnes = state.programme.nbPersonnes || 2;
+    suggMidi.forEach(function(s){
+      var key = "midi_"+s.recipe.id;
+      checkedSlots[key] = chosenMidiIds.indexOf(s.recipe.id)!==-1;
+      portionsSlots[key] = defaultPersonnes;
+    });
+    suggSoir.forEach(function(s){
+      var key = "soir_"+s.recipe.id;
+      checkedSlots[key] = chosenSoirIds.indexOf(s.recipe.id)!==-1;
+      portionsSlots[key] = defaultPersonnes;
+    });
+
+    renderSuggestionGroup("midi", suggMidi, chosenMidiIds);
+    renderSuggestionGroup("soir", suggSoir, chosenSoirIds);
+    document.getElementById("suggestions-midi-card").style.display = suggMidi.length ? "block" : "none";
+    document.getElementById("suggestions-soir-card").style.display = suggSoir.length ? "block" : "none";
+    document.getElementById("validate-card").style.display = "block";
+  });
+
+  function renderSuggestionGroup(moment, list, chosenIds){
+    var wrap = document.getElementById(moment==="midi" ? "suggestions-list-midi" : "suggestions-list-soir");
+    wrap.innerHTML = "";
+    if(list.length===0){
+      wrap.innerHTML = '<p class="empty">Aucun plat marqué pour ce moment pour l\'instant.</p>';
+      return;
+    }
+    list.forEach(function(s){
+      var recipe = s.recipe;
+      var key = moment+"_"+recipe.id;
+      var isSuggested = chosenIds.indexOf(recipe.id)!==-1;
+      var alt = (recipe.proteine==="viande" && recipe.alternativeVegeId)
+        ? state.recipes.find(function(rc){ return rc.id===recipe.alternativeVegeId; })
+        : null;
+      var card = document.createElement("div");
+      card.className = "recipe-card" + (isSuggested ? " suggested" : "");
+      card.innerHTML =
+        '<label style="display:flex; align-items:center; gap:10px; font-weight:normal; cursor:pointer;">'+
+          '<input type="checkbox" class="sugg-check" data-recipe-id="'+recipe.id+'" data-slotkey="'+key+'" '+(checkedSlots[key]?"checked":"")+' style="width:18px;height:18px;">'+
+          '<span><strong>'+escapeHtml(recipe.nom)+'</strong>'+(isSuggested?' <span class="tag badge">⭐ suggéré</span>':'')+
+          '<div>'+
+            '<span class="tag">'+saisonLabel(recipe.saison)+'</span>'+
+            '<span class="tag">'+santeLabel(recipe.sante)+'</span>'+
+            '<span class="tag">'+proteineLabel(recipe.proteine)+'</span>'+
+            recipe.style.map(function(st){ return '<span class="tag">'+styleLabel(st)+'</span>'; }).join("")+
+          '</div></span>'+
+        '</label>'+
+        '<div class="muted" style="font-size:0.82rem; margin:6px 0 0 28px; display:flex; align-items:center; gap:6px;">'+
+          '<span>Pour combien de personnes ce repas-là (invités, tupperware...) :</span>'+
+          '<input type="number" class="sugg-portions" min="1" value="'+(portionsSlots[key]||1)+'" style="width:60px; padding:2px 4px;" title="Nombre de personnes pour ce repas">'+
+        '</div>'+
+        (alt ? '<div class="muted" style="font-size:0.82rem; margin:4px 0 0 28px;">🌱 Alternative végé : '+escapeHtml(alt.nom)+
+          ' <button type="button" class="btn small secondary btn-swap-vege">Remplacer</button></div>' : '');
+      card.querySelector(".sugg-check").addEventListener("change", function(e){
+        checkedSlots[key] = e.target.checked;
+      });
+      card.querySelector(".sugg-portions").addEventListener("input", function(e){
+        portionsSlots[key] = parseFloat(e.target.value) || 1;
+      });
+      var swapBtn = card.querySelector(".btn-swap-vege");
+      if(swapBtn){
+        swapBtn.addEventListener("click", function(){
+          var thisCb = card.querySelector(".sugg-check");
+          var altCb = wrap.querySelector('.sugg-check[data-recipe-id="'+alt.id+'"]');
+          thisCb.checked = false;
+          checkedSlots[key] = false;
+          if(altCb){
+            altCb.checked = true;
+            checkedSlots[altCb.dataset.slotkey] = true;
+            portionsSlots[altCb.dataset.slotkey] = portionsSlots[key];
+            toast('Remplacé par "'+alt.nom+'".');
+          } else {
+            toast('"'+alt.nom+'" n\'est pas dans cette liste pour ce moment — ajoute-le manuellement si besoin.');
+          }
+        });
+      }
+      wrap.appendChild(card);
+    });
+  }
+
+  document.getElementById("btn-validate-menu").addEventListener("click", function(){
+    var chosenEntries = [];
+    Object.keys(checkedSlots).forEach(function(key){
+      if(!checkedSlots[key]) return;
+      var moment = key.slice(0, key.indexOf("_"));
+      var recipeId = key.slice(key.indexOf("_")+1);
+      var portions = portionsSlots[key] || state.programme.nbPersonnes || 2;
+      chosenEntries.push({recipeId:recipeId, portions:portions, moment:moment});
+    });
+    if(chosenEntries.length===0){ toast("Sélectionne au moins un plat."); return; }
+    state.menuCourant = chosenEntries;
+    state.historique.push({date: new Date().toISOString().slice(0,10), items: chosenEntries});
+    // Garde un historique long (calendrier) plutôt que juste les dernières semaines.
+    state.historique = state.historique.slice(-104);
+    saveState();
+    renderCalendrier();
+    generateShoppingList();
+    document.querySelectorAll("nav button").forEach(function(b){ b.classList.remove("active"); });
+    document.querySelectorAll(".tab").forEach(function(t){ t.classList.remove("active"); });
+    document.querySelector('nav button[data-tab="courses"]').classList.add("active");
+    document.getElementById("tab-courses").classList.add("active");
+    toast("Menu validé, liste de courses générée !");
+  });
+
+  // ---------- SHOPPING LIST ----------
+  var currentNeeded = {}; // key -> {nom, unite, quantite, magasin}
+
+  function generateShoppingList(){
+    currentNeeded = {};
+    var defaultPersonnes = state.programme.nbPersonnes || 2;
+    state.menuCourant.forEach(function(entry){
+      // compatibilité : anciennes données où menuCourant était juste un tableau d'ids
+      var recipeId = (typeof entry === "string") ? entry : entry.recipeId;
+      var portions = (typeof entry === "string") ? defaultPersonnes : (entry.portions || defaultPersonnes);
+      var recipe = state.recipes.find(function(r){ return r.id===recipeId; });
+      if(!recipe) return;
+      var ratio = portions / (recipe.portions || portions);
+      recipe.ingredients.forEach(function(ing){
+        var key = normalize(ing.nom)+"|"+normalize(ing.unite);
+        if(!currentNeeded[key]){
+          currentNeeded[key] = {nom: ing.nom, unite: ing.unite, magasin: ing.magasin, quantite: 0};
+        }
+        currentNeeded[key].quantite += (ing.quantite||0) * ratio;
+      });
+    });
+    // subtract stock from quizz
+    state.quizz.forEach(function(item){
+      if(!item.nom || !item.quantite) return;
+      var key = normalize(item.nom)+"|"+normalize(item.unite||"");
+      if(currentNeeded[key]){
+        currentNeeded[key].quantite -= item.quantite;
+      }
+    });
+    // add manual extras
+    state.extras.forEach(function(ex){
+      var key = "extra|"+normalize(ex.nom)+"|"+ex.magasin;
+      currentNeeded[key] = currentNeeded[key] || {nom: ex.nom, unite:"", magasin: ex.magasin, quantite: null, isExtra:true};
+    });
+    renderShoppingList();
+  }
+
+  function renderShoppingList(){
+    var wrap = document.getElementById("courses-list");
+    wrap.innerHTML = "";
+    var byShop = {};
+    MAGASINS.forEach(function(m){ byShop[m.key] = []; });
+    Object.keys(currentNeeded).forEach(function(key){
+      var item = currentNeeded[key];
+      if(item.quantite !== null && item.quantite <= 0.0001) return; // already covered by stock
+      byShop[item.magasin] = byShop[item.magasin] || [];
+      byShop[item.magasin].push(item);
+    });
+    var hasAny = false;
+    MAGASINS.forEach(function(m){
+      var items = byShop[m.key];
+      if(!items || items.length===0) return;
+      hasAny = true;
+      var group = document.createElement("div");
+      group.className = "shop-group";
+      var itemsHtml = items.map(function(item, i){
+        var qte = item.quantite===null ? "" : (" — " + roundQ(item.quantite) + (item.unite?(" "+item.unite):""));
+        return '<div class="shop-item"><input type="checkbox"><label>'+escapeHtml(item.nom)+qte+'</label></div>';
+      }).join("");
+      group.innerHTML = '<h3>'+m.label+'</h3>'+itemsHtml;
+      group.querySelectorAll(".shop-item input").forEach(function(cb){
+        cb.addEventListener("change", function(){
+          cb.closest(".shop-item").classList.toggle("checked", cb.checked);
+        });
+      });
+      wrap.appendChild(group);
+    });
+    if(!hasAny){
+      wrap.innerHTML = '<p class="empty">Aucune liste pour le moment. Valide un menu dans l\'onglet Suggestions.</p>';
+      document.getElementById("courses-actions").style.display = "none";
+    } else {
+      document.getElementById("courses-actions").style.display = "block";
+    }
+  }
+
+  function roundQ(n){
+    var r = Math.round(n*10)/10;
+    return r;
+  }
+
+  // extras
+  (function initExtraMagasinSelect(){
+    document.getElementById("extra-magasin").innerHTML = magasinOptionsHtml("epicerie");
+  })();
+
+  document.getElementById("btn-add-extra").addEventListener("click", function(){
+    var nom = document.getElementById("extra-nom").value.trim();
+    if(!nom){ toast("Indique un article."); return; }
+    var magasin = document.getElementById("extra-magasin").value;
+    state.extras.push({nom:nom, magasin:magasin});
+    saveState();
+    document.getElementById("extra-nom").value = "";
+    generateShoppingList();
+  });
+
+  document.getElementById("btn-print").addEventListener("click", function(){ window.print(); });
+
+  document.getElementById("btn-copy").addEventListener("click", function(){
+    var lines = [];
+    MAGASINS.forEach(function(m){
+      var items = [];
+      Object.keys(currentNeeded).forEach(function(key){
+        var item = currentNeeded[key];
+        if(item.magasin !== m.key) return;
+        if(item.quantite !== null && item.quantite <= 0.0001) return;
+        var qte = item.quantite===null ? "" : (" - " + roundQ(item.quantite) + (item.unite?(" "+item.unite):""));
+        items.push("- "+item.nom+qte);
+      });
+      if(items.length){
+        lines.push(m.label+":");
+        lines = lines.concat(items);
+        lines.push("");
+      }
+    });
+    var text = lines.join("\n");
+    copyToClipboard(text);
+  });
+
+  function copyToClipboard(text){
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(function(){
+        toast("Liste copiée ! Tu peux la coller dans un message.");
+      }).catch(function(){ fallbackCopy(text); });
+    } else {
+      fallbackCopy(text);
+    }
+  }
+  function fallbackCopy(text){
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    try{ document.execCommand("copy"); toast("Liste copiée !"); }
+    catch(e){ toast("Copie impossible, sélectionne le texte manuellement."); }
+    document.body.removeChild(ta);
+  }
+
+  document.getElementById("btn-new-week").addEventListener("click", function(){
+    if(!confirm("Effacer le quizz du frigo, le menu et les extras pour repartir sur une nouvelle semaine ? Tes plats et ton historique sont conservés.")) return;
+    state.quizz = [];
+    state.extras = [];
+    state.menuCourant = [];
+    saveState();
+    renderQuizz();
+    currentNeeded = {};
+    document.getElementById("suggestions-list-midi").innerHTML = "";
+    document.getElementById("suggestions-list-soir").innerHTML = "";
+    document.getElementById("suggestions-midi-card").style.display = "none";
+    document.getElementById("suggestions-soir-card").style.display = "none";
+    document.getElementById("validate-card").style.display = "none";
+    renderShoppingList();
+    toast("Nouvelle semaine prête !");
+  });
+
+  // ---------- INIT ----------
+  renderRecipes();
+  renderQuizz();
+  renderProgramme();
+  renderCalendrier();
+  if(state.menuCourant && state.menuCourant.length){
+    generateShoppingList();
+  }
+
+  var existingSyncCfg = loadSyncConfig();
+  if(existingSyncCfg){
+    try{
+      document.getElementById("sync-config").value = JSON.stringify(existingSyncCfg.firebaseConfig, null, 2);
+      document.getElementById("sync-code").value = existingSyncCfg.code;
+      document.getElementById("sync-email").value = existingSyncCfg.email || "";
+    }catch(e){}
+    // Pas de mot de passe stocké : ceci ne fera que restaurer la session Firebase
+    // déjà ouverte sur cet appareil (si elle existe encore).
+    setTimeout(function(){ initSync(existingSyncCfg); }, 300);
+  }
+
+})();
+</script>
+</body>
+</html>
