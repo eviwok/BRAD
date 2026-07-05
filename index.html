@@ -32,6 +32,7 @@
     text-transform:uppercase; letter-spacing:0.03em;
   }
   nav button.active{background:var(--bg); color:var(--black);}
+  nav button.refresh-btn{margin-left:auto; background:var(--dark); color:#fff; text-transform:none; letter-spacing:0; font-weight:600;}
   main{max-width:900px; margin:0 auto; padding:20px 16px 80px 16px;}
   .tab{display:none;}
   .tab.active{display:block;}
@@ -102,6 +103,7 @@
     <button data-tab="courses">Liste épicerie</button>
     <button data-tab="calendrier">Calendrier</button>
     <button data-tab="sync">Partage</button>
+    <button type="button" class="refresh-btn no-print" id="btn-refresh-all" title="Rafraîchir / synchroniser les données">🔄 Actualiser</button>
   </nav>
 </header>
 
@@ -177,7 +179,7 @@
             <option value="vegetarien">Végétarien</option>
           </select>
         </div>
-        <div>
+        <div id="r-alt-vege-wrap" style="display:none;">
           <label>Alternative végé possible (optionnel)</label>
           <select id="r-alt-vege">
             <option value="">Aucune</option>
@@ -271,10 +273,18 @@
     </div>
     <div class="card" id="suggestions-midi-card" style="display:none;">
       <h2>🥪 Repas de midi</h2>
+      <div class="row no-print" style="margin:0 0 10px 0;">
+        <button type="button" class="btn small secondary" id="btn-select-all-midi">Tout sélectionner</button>
+        <button type="button" class="btn small secondary" id="btn-deselect-all-midi">Tout désélectionner</button>
+      </div>
       <div id="suggestions-list-midi"></div>
     </div>
     <div class="card" id="suggestions-soir-card" style="display:none;">
       <h2>🍽️ Repas du soir</h2>
+      <div class="row no-print" style="margin:0 0 10px 0;">
+        <button type="button" class="btn small secondary" id="btn-select-all-soir">Tout sélectionner</button>
+        <button type="button" class="btn small secondary" id="btn-deselect-all-soir">Tout désélectionner</button>
+      </div>
       <div id="suggestions-list-soir"></div>
     </div>
     <div class="card" id="validate-card" style="display:none;">
@@ -297,6 +307,8 @@
     <div class="card no-print" id="courses-actions" style="display:none;">
       <button class="btn secondary" id="btn-print">🖨️ Imprimer</button>
       <button class="btn secondary" id="btn-copy">📋 Copier le texte</button>
+      <button class="btn secondary" id="btn-export-md">📄 Télécharger .md</button>
+      <button class="btn secondary" id="btn-export-pdf">📄 Télécharger PDF</button>
       <button class="btn danger" id="btn-new-week">Nouvelle semaine (garde les plats, efface quizz/menu)</button>
     </div>
   </section>
@@ -361,6 +373,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<!-- jsPDF (facultatif, utilisé seulement pour le bouton "Télécharger en PDF" de la liste de courses) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <script>
 (function(){
@@ -957,6 +971,37 @@
     document.getElementById("tab-"+btn.dataset.tab).classList.add("active");
   });
 
+  // Bouton "Actualiser" toujours visible (quel que soit l'onglet) : force un aller-retour
+  // avec Firebase (récupère les dernières données du foyer + pousse les changements en attente),
+  // ou simplement re-render les données locales si la synchro n'est pas connectée.
+  document.getElementById("btn-refresh-all").addEventListener("click", function(){
+    if(syncRef){
+      clearTimeout(syncSaveTimer);
+      try{ syncRef.set(state); }catch(e){}
+      syncRef.once("value").then(function(snapshot){
+        try{
+          var remote = snapshot.val();
+          if(remote){
+            applyingRemoteUpdate = true;
+            state = normalizeState(remote);
+            renderAll();
+            saveState();
+            applyingRemoteUpdate = false;
+          }
+          toast("Données à jour avec ton foyer !");
+        }catch(e){
+          applyingRemoteUpdate = false;
+          toast("Erreur pendant l'actualisation : " + (e && e.message ? e.message : e));
+        }
+      }).catch(function(err){
+        toast("Impossible de récupérer les dernières données : " + (err && err.message ? err.message : err));
+      });
+    } else {
+      renderAll();
+      toast("Données locales actualisées (Partage non connecté).");
+    }
+  });
+
   // ---------- RECIPES ----------
   var editingRecipeId = null;
 
@@ -968,15 +1013,29 @@
 
   function refreshAltVegeOptions(excludeId){
     var sel = document.getElementById("r-alt-vege");
+    // Seuls les vrais plats/repas végétariens ont du sens comme alternative à une viande
+    // (on exclut desserts, boissons, sauces... qui sont aussi "vegetarien" par défaut mais non pertinents ici).
     var vegeRecipes = state.recipes.filter(function(rc){
-      return rc.proteine === "vegetarien" && rc.id !== excludeId;
+      var cat = rc.categorie || "repas";
+      return rc.proteine === "vegetarien" && rc.id !== excludeId && (cat === "plats" || cat === "repas");
     });
+    vegeRecipes.sort(function(a,b){ return a.nom.localeCompare(b.nom); });
     var html = '<option value="">Aucune</option>';
     vegeRecipes.forEach(function(rc){
       html += '<option value="'+rc.id+'">'+escapeHtml(rc.nom)+'</option>';
     });
     sel.innerHTML = html;
   }
+
+  // L'alternative végé n'a de sens que pour un plat à base de viande (c'est la seule protéine
+  // que l'appli remplace automatiquement en cas de dépassement du quota viande de la semaine).
+  function toggleAltVegeVisibility(){
+    var isViande = document.getElementById("r-proteine").value === "viande";
+    var wrap = document.getElementById("r-alt-vege-wrap");
+    wrap.style.display = isViande ? "block" : "none";
+    if(!isViande) document.getElementById("r-alt-vege").value = "";
+  }
+  document.getElementById("r-proteine").addEventListener("change", toggleAltVegeVisibility);
 
   function addIngredientRow(ing){
     ing = ing || {nom:"", quantite:"", unite:"", magasin:"epicerie"};
@@ -1016,6 +1075,7 @@
     document.getElementById("r-proteine").value = recipe ? (recipe.proteine||"vegetarien") : "vegetarien";
     refreshAltVegeOptions(recipe ? recipe.id : null);
     document.getElementById("r-alt-vege").value = recipe ? (recipe.alternativeVegeId||"") : "";
+    toggleAltVegeVisibility();
     document.querySelectorAll("#r-style input").forEach(function(cb){
       cb.checked = recipe ? recipe.style.indexOf(cb.value) !== -1 : false;
     });
@@ -1336,11 +1396,31 @@
   var suggSoir = [];
   var checkedSlots = {};
   var portionsSlots = {};
+  var chosenMidiIds = [];
+  var chosenSoirIds = [];
+  var restesReasons = {}; // recipeId -> [{nom, etat}] restes du frigo qui ont motivé la suggestion
+
+  // Liste les restes du quizz du frigo utilisés par une recette (ingrédient marqué "urgent" ou "ok").
+  function matchedRestes(recipe, qMap){
+    var out = [];
+    recipe.ingredients.forEach(function(ing){
+      var etat = qMap[normalize(ing.nom)];
+      if(etat){ out.push({nom: ing.nom, etat: etat}); }
+    });
+    return out;
+  }
+  function restesReasonText(reasons){
+    return reasons.map(function(r){
+      return r.nom + (r.etat==="urgent" ? " (à consommer vite)" : " (encore ok)");
+    }).join(", ");
+  }
 
   document.getElementById("btn-generate-suggestions").addEventListener("click", function(){
     if(state.recipes.length===0){ toast("Ajoute d'abord des plats dans l'onglet Mes plats."); return; }
     var qMap = quizzMap();
     var recentIds = recentRecipeIds();
+    restesReasons = {};
+    state.recipes.forEach(function(r){ restesReasons[r.id] = matchedRestes(r, qMap); });
 
     suggMidi = state.recipes.filter(function(r){ return eligibleFor(r,"midi"); })
       .map(function(r){ return {recipe:r, score: computeScore(r, qMap, state.programme, recentIds, "midi")}; });
@@ -1363,8 +1443,8 @@
     chosenMidi = afterMeatCap.chosenMidi;
     chosenSoir = afterMeatCap.chosenSoir;
 
-    var chosenMidiIds = chosenMidi.map(function(s){ return s.recipe.id; });
-    var chosenSoirIds = chosenSoir.map(function(s){ return s.recipe.id; });
+    chosenMidiIds = chosenMidi.map(function(s){ return s.recipe.id; });
+    chosenSoirIds = chosenSoir.map(function(s){ return s.recipe.id; });
 
     checkedSlots = {};
     portionsSlots = {};
@@ -1387,6 +1467,20 @@
     document.getElementById("validate-card").style.display = "block";
   });
 
+  function setAllChecked(moment, value){
+    var list = moment==="midi" ? suggMidi : suggSoir;
+    var ids = moment==="midi" ? chosenMidiIds : chosenSoirIds;
+    if(list.length===0){ toast("Génère d'abord les suggestions."); return; }
+    list.forEach(function(s){
+      checkedSlots[moment+"_"+s.recipe.id] = value;
+    });
+    renderSuggestionGroup(moment, list, ids);
+  }
+  document.getElementById("btn-select-all-midi").addEventListener("click", function(){ setAllChecked("midi", true); });
+  document.getElementById("btn-deselect-all-midi").addEventListener("click", function(){ setAllChecked("midi", false); });
+  document.getElementById("btn-select-all-soir").addEventListener("click", function(){ setAllChecked("soir", true); });
+  document.getElementById("btn-deselect-all-soir").addEventListener("click", function(){ setAllChecked("soir", false); });
+
   function renderSuggestionGroup(moment, list, chosenIds){
     var wrap = document.getElementById(moment==="midi" ? "suggestions-list-midi" : "suggestions-list-soir");
     wrap.innerHTML = "";
@@ -1401,6 +1495,7 @@
       var alt = (recipe.proteine==="viande" && recipe.alternativeVegeId)
         ? state.recipes.find(function(rc){ return rc.id===recipe.alternativeVegeId; })
         : null;
+      var reasons = restesReasons[recipe.id] || [];
       var card = document.createElement("div");
       card.className = "recipe-card" + (isSuggested ? " suggested" : "");
       card.innerHTML =
@@ -1414,6 +1509,7 @@
             recipe.style.map(function(st){ return '<span class="tag">'+styleLabel(st)+'</span>'; }).join("")+
           '</div></span>'+
         '</label>'+
+        (reasons.length ? '<div class="muted" style="font-size:0.82rem; margin:4px 0 0 28px;">🧊 Utilise des restes : '+escapeHtml(restesReasonText(reasons))+'</div>' : '')+
         '<div class="muted" style="font-size:0.82rem; margin:6px 0 0 28px; display:flex; align-items:center; gap:6px;">'+
           '<span>Pour combien de personnes ce repas-là (invités, tupperware...) :</span>'+
           '<input type="number" class="sugg-portions" min="1" value="'+(portionsSlots[key]||1)+'" style="width:60px; padding:2px 4px;" title="Nombre de personnes pour ce repas">'+
@@ -1568,8 +1664,10 @@
 
   document.getElementById("btn-print").addEventListener("click", function(){ window.print(); });
 
-  document.getElementById("btn-copy").addEventListener("click", function(){
-    var lines = [];
+  // Regroupe la liste de courses actuelle par magasin : [{label, items:["Nom - 200 g", ...]}]
+  // Utilisé par "Copier le texte", "Télécharger .md" et "Télécharger PDF" pour ne pas dupliquer la logique.
+  function buildShoppingGroups(){
+    var groups = [];
     MAGASINS.forEach(function(m){
       var items = [];
       Object.keys(currentNeeded).forEach(function(key){
@@ -1577,16 +1675,79 @@
         if(item.magasin !== m.key) return;
         if(item.quantite !== null && item.quantite <= 0.0001) return;
         var qte = item.quantite===null ? "" : (" - " + roundQ(item.quantite) + (item.unite?(" "+item.unite):""));
-        items.push("- "+item.nom+qte);
+        items.push(item.nom+qte);
       });
-      if(items.length){
-        lines.push(m.label+":");
-        lines = lines.concat(items);
-        lines.push("");
-      }
+      if(items.length){ groups.push({label: m.label, items: items}); }
     });
-    var text = lines.join("\n");
-    copyToClipboard(text);
+    return groups;
+  }
+
+  function downloadFile(filename, content, mime){
+    var blob = new Blob([content], {type: mime || "text/plain"});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+  }
+
+  document.getElementById("btn-copy").addEventListener("click", function(){
+    var groups = buildShoppingGroups();
+    var lines = [];
+    groups.forEach(function(g){
+      lines.push(g.label+":");
+      g.items.forEach(function(it){ lines.push("- "+it); });
+      lines.push("");
+    });
+    copyToClipboard(lines.join("\n"));
+  });
+
+  document.getElementById("btn-export-md").addEventListener("click", function(){
+    var groups = buildShoppingGroups();
+    if(groups.length===0){ toast("Aucune liste à exporter pour le moment."); return; }
+    var lines = ["# Liste de courses — BRAD", "", new Date().toLocaleDateString("fr-CH"), ""];
+    groups.forEach(function(g){
+      lines.push("## "+g.label);
+      g.items.forEach(function(it){ lines.push("- [ ] "+it); });
+      lines.push("");
+    });
+    downloadFile("liste-courses-"+new Date().toISOString().slice(0,10)+".md", lines.join("\n"), "text/markdown");
+  });
+
+  document.getElementById("btn-export-pdf").addEventListener("click", function(){
+    if(typeof window.jspdf === "undefined"){
+      toast("Le générateur PDF n'a pas pu se charger (vérifie ta connexion internet et réessaie).");
+      return;
+    }
+    var groups = buildShoppingGroups();
+    if(groups.length===0){ toast("Aucune liste à exporter pour le moment."); return; }
+    var doc = new window.jspdf.jsPDF();
+    var pageHeight = doc.internal.pageSize.getHeight();
+    var y = 20;
+    doc.setFontSize(16);
+    doc.text("Liste de courses — BRAD", 14, y);
+    y += 7;
+    doc.setFontSize(10);
+    doc.setTextColor(110,110,110);
+    doc.text(new Date().toLocaleDateString("fr-CH"), 14, y);
+    doc.setTextColor(26,26,26);
+    y += 10;
+    groups.forEach(function(g){
+      if(y > pageHeight - 20){ doc.addPage(); y = 20; }
+      doc.setFontSize(13);
+      doc.text(g.label, 14, y);
+      y += 7;
+      doc.setFontSize(11);
+      g.items.forEach(function(it){
+        if(y > pageHeight - 15){ doc.addPage(); y = 20; }
+        doc.text("- "+it, 18, y);
+        y += 6;
+      });
+      y += 5;
+    });
+    doc.save("liste-courses-"+new Date().toISOString().slice(0,10)+".pdf");
   });
 
   function copyToClipboard(text){
@@ -1652,4 +1813,3 @@
 </script>
 </body>
 </html>
-
