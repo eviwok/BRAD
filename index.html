@@ -817,7 +817,30 @@
       if(byMoment.flexible.length){
         html += '<p class="muted" style="margin:2px 0;">Autres : ' + byMoment.flexible.map(escapeHtml).join(", ") + "</p>";
       }
+      html += '<button type="button" class="btn small secondary no-print btn-toggle-week-list" style="margin-top:8px;">🛒 Voir la liste de courses de cette semaine</button>' +
+        '<div class="week-shopping-list" style="display:none; margin-top:10px;"></div>';
       card.innerHTML = html;
+      var toggleBtn = card.querySelector(".btn-toggle-week-list");
+      var listDiv = card.querySelector(".week-shopping-list");
+      toggleBtn.addEventListener("click", function(){
+        if(listDiv.style.display === "none"){
+          var groups = groupNeededByShop(computeNeededForItems(items));
+          if(groups.length === 0){
+            listDiv.innerHTML = '<p class="empty">Ingrédients introuvables (plats peut-être supprimés depuis).</p>';
+          } else {
+            listDiv.innerHTML = groups.map(function(g){
+              return '<div class="shop-group"><h3>' + escapeHtml(g.label) + '</h3>' +
+                g.items.map(function(it){ return '<div class="shop-item"><label>' + escapeHtml(it) + '</label></div>'; }).join("") +
+                '</div>';
+            }).join("");
+          }
+          listDiv.style.display = "block";
+          toggleBtn.textContent = "▲ Masquer la liste de courses";
+        } else {
+          listDiv.style.display = "none";
+          toggleBtn.textContent = "🛒 Voir la liste de courses de cette semaine";
+        }
+      });
       wrap.appendChild(card);
     });
   }
@@ -1570,10 +1593,12 @@
   // ---------- SHOPPING LIST ----------
   var currentNeeded = {}; // key -> {nom, unite, quantite, magasin}
 
-  function generateShoppingList(){
-    currentNeeded = {};
+  // Calcule les quantités d'ingrédients nécessaires pour une liste de plats donnée
+  // (utilisé pour la semaine courante, mais aussi pour ré-afficher une liste passée depuis le Calendrier).
+  function computeNeededForItems(items){
+    var needed = {};
     var defaultPersonnes = state.programme.nbPersonnes || 2;
-    state.menuCourant.forEach(function(entry){
+    (items||[]).forEach(function(entry){
       // compatibilité : anciennes données où menuCourant était juste un tableau d'ids
       var recipeId = (typeof entry === "string") ? entry : entry.recipeId;
       var portions = (typeof entry === "string") ? defaultPersonnes : (entry.portions || defaultPersonnes);
@@ -1582,19 +1607,52 @@
       var ratio = portions / (recipe.portions || portions);
       recipe.ingredients.forEach(function(ing){
         var key = normalize(ing.nom)+"|"+normalize(ing.unite);
-        if(!currentNeeded[key]){
-          currentNeeded[key] = {nom: ing.nom, unite: ing.unite, magasin: ing.magasin, quantite: 0};
+        if(!needed[key]){
+          needed[key] = {nom: ing.nom, unite: ing.unite, magasin: ing.magasin, quantite: 0};
         }
-        currentNeeded[key].quantite += (ing.quantite||0) * ratio;
+        needed[key].quantite += (ing.quantite||0) * ratio;
       });
     });
-    // subtract stock from quizz
+    return needed;
+  }
+
+  // Regroupe une liste "needed" (voir computeNeededForItems) par magasin : [{label, items:["Nom - 200 g", ...]}]
+  function groupNeededByShop(needed){
+    var groups = [];
+    MAGASINS.forEach(function(m){
+      var items = [];
+      Object.keys(needed).forEach(function(key){
+        var item = needed[key];
+        if(item.magasin !== m.key) return;
+        if(item.quantite !== null && item.quantite <= 0.0001) return;
+        var qte = item.quantite===null ? "" : (" - " + roundQ(item.quantite) + (item.unite?(" "+item.unite):""));
+        items.push(item.nom+qte);
+      });
+      if(items.length){ groups.push({label: m.label, items: items}); }
+    });
+    return groups;
+  }
+
+  function generateShoppingList(){
+    currentNeeded = computeNeededForItems(state.menuCourant);
+    // Soustrait les restes déclarés dans l'onglet Restes. On matche par nom d'ingrédient
+    // uniquement (pas besoin que l'unité soit tapée à l'identique) : dès qu'un reste est
+    // signalé, l'ingrédient ne doit plus apparaître dans la liste de courses. S'il y a une
+    // quantité ET une unité qui correspondent exactement à celles de la recette, on fait une
+    // déduction précise ; sinon on considère l'ingrédient comme déjà couvert (quantité à 0).
     state.quizz.forEach(function(item){
-      if(!item.nom || !item.quantite) return;
-      var key = normalize(item.nom)+"|"+normalize(item.unite||"");
-      if(currentNeeded[key]){
-        currentNeeded[key].quantite -= item.quantite;
-      }
+      if(!item.nom) return;
+      var itemNameKey = normalize(item.nom);
+      Object.keys(currentNeeded).forEach(function(key){
+        var needed = currentNeeded[key];
+        if(normalize(needed.nom) !== itemNameKey) return;
+        var sameUnit = normalize(item.unite||"") === normalize(needed.unite||"");
+        if(item.quantite && sameUnit){
+          needed.quantite -= item.quantite;
+        } else {
+          needed.quantite = 0;
+        }
+      });
     });
     // add manual extras
     state.extras.forEach(function(ex){
@@ -1667,19 +1725,7 @@
   // Regroupe la liste de courses actuelle par magasin : [{label, items:["Nom - 200 g", ...]}]
   // Utilisé par "Copier le texte", "Télécharger .md" et "Télécharger PDF" pour ne pas dupliquer la logique.
   function buildShoppingGroups(){
-    var groups = [];
-    MAGASINS.forEach(function(m){
-      var items = [];
-      Object.keys(currentNeeded).forEach(function(key){
-        var item = currentNeeded[key];
-        if(item.magasin !== m.key) return;
-        if(item.quantite !== null && item.quantite <= 0.0001) return;
-        var qte = item.quantite===null ? "" : (" - " + roundQ(item.quantite) + (item.unite?(" "+item.unite):""));
-        items.push(item.nom+qte);
-      });
-      if(items.length){ groups.push({label: m.label, items: items}); }
-    });
-    return groups;
+    return groupNeededByShop(currentNeeded);
   }
 
   function downloadFile(filename, content, mime){
