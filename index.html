@@ -83,6 +83,11 @@
   #recipe-form{display:none;}
   #recipe-form.open{display:block;}
   .footer-note{font-size:0.8rem; color:var(--gray); margin-top:20px; text-align:center;}
+  details.collapsible{margin-bottom:8px;}
+  details.collapsible summary{cursor:pointer; font-weight:600; font-size:0.9rem; color:var(--black); padding:6px 0;}
+  details.collapsible summary::-webkit-details-marker{color:var(--gray);}
+  details.collapsible[open] summary{margin-bottom:4px;}
+  .week-checklist{margin-bottom:2px;}
   @media print{
     header, nav, .no-print{display:none !important;}
     .tab{display:none !important;}
@@ -326,16 +331,19 @@
   <section id="tab-sync" class="tab">
     <div class="card">
       <h2>Partage entre appareils (optionnel)</h2>
-      <p class="muted">Par défaut, tes données restent dans ce navigateur. Pour que toi et ton conjoint voyiez les mêmes plats, quizz et menu en direct sur vos appareils — protégés par un mot de passe — connecte l'app à une base de données gratuite (Firebase). À faire une fois, par l'un de vous deux :</p>
-      <ol style="font-size:0.88rem; color:var(--gray); padding-left:20px; margin:10px 0;">
-        <li>Va sur <a href="https://console.firebase.google.com" target="_blank" rel="noopener">console.firebase.google.com</a>, connecte-toi avec un compte Google (gratuit) et crée un projet.</li>
-        <li>Dans le menu de gauche : <strong>Créer une base de données</strong> → <strong>Realtime Database</strong> → démarre en <strong>mode test</strong> (on protège ça juste après).</li>
-        <li>Menu de gauche → <strong>Authentication</strong> → Get started → onglet Sign-in method → active <strong>E-mail/Mot de passe</strong>.</li>
-        <li>Toujours dans Authentication, onglet <strong>Users</strong> → <strong>Add user</strong> → crée un e-mail + mot de passe (le même que ton conjoint utilisera pour se connecter).</li>
-        <li>Retourne dans Realtime Database → onglet <strong>Règles</strong> : remplace le contenu par <code>{"rules": {".read": "auth != null", ".write": "auth != null"}}</code> puis Publier. (Cela remplace le mode test ouvert par une vraie protection par mot de passe.)</li>
-        <li>Paramètres du projet (roue crantée, en haut à gauche) → section <strong>Vos applications</strong> → ajoute une appli Web (icône <code>&lt;/&gt;</code>) → copie l'objet <code>firebaseConfig</code> affiché.</li>
-        <li>Colle-le ci-dessous avec un <strong>code du foyer</strong> (juste pour séparer vos données des autres utilisateurs Firebase, pas une protection en soi) et l'e-mail/mot de passe créés à l'étape 4. Fais pareil sur l'appareil de ton conjoint.</li>
-      </ol>
+      <details class="collapsible">
+        <summary>Comment ça marche / marche à suivre (clique pour dérouler)</summary>
+        <p class="muted">Par défaut, tes données restent dans ce navigateur. Pour que toi et ton conjoint voyiez les mêmes plats, quizz et menu en direct sur vos appareils — protégés par un mot de passe — connecte l'app à une base de données gratuite (Firebase). À faire une fois, par l'un de vous deux :</p>
+        <ol style="font-size:0.88rem; color:var(--gray); padding-left:20px; margin:10px 0;">
+          <li>Va sur <a href="https://console.firebase.google.com" target="_blank" rel="noopener">console.firebase.google.com</a>, connecte-toi avec un compte Google (gratuit) et crée un projet.</li>
+          <li>Dans le menu de gauche : <strong>Créer une base de données</strong> → <strong>Realtime Database</strong> → démarre en <strong>mode test</strong> (on protège ça juste après).</li>
+          <li>Menu de gauche → <strong>Authentication</strong> → Get started → onglet Sign-in method → active <strong>E-mail/Mot de passe</strong>.</li>
+          <li>Toujours dans Authentication, onglet <strong>Users</strong> → <strong>Add user</strong> → crée un e-mail + mot de passe (le même que ton conjoint utilisera pour se connecter).</li>
+          <li>Retourne dans Realtime Database → onglet <strong>Règles</strong> : remplace le contenu par <code>{"rules": {".read": "auth != null", ".write": "auth != null"}}</code> puis Publier. (Cela remplace le mode test ouvert par une vraie protection par mot de passe.)</li>
+          <li>Paramètres du projet (roue crantée, en haut à gauche) → section <strong>Vos applications</strong> → ajoute une appli Web (icône <code>&lt;/&gt;</code>) → copie l'objet <code>firebaseConfig</code> affiché.</li>
+          <li>Colle-le ci-dessous avec un <strong>code du foyer</strong> (juste pour séparer vos données des autres utilisateurs Firebase, pas une protection en soi) et l'e-mail/mot de passe créés à l'étape 4. Fais pareil sur l'appareil de ton conjoint.</li>
+        </ol>
+      </details>
       <label>Config Firebase (objet firebaseConfig copié depuis la console)</label>
       <textarea id="sync-config" rows="5" placeholder='{ apiKey: "...", authDomain: "...", databaseURL: "...", projectId: "..." }'></textarea>
       <label>Code du foyer</label>
@@ -797,7 +805,13 @@
     }
     wrap.innerHTML = "";
     state.historique.slice().reverse().forEach(function(week){
-      var items = week.items || (week.recipeIds||[]).map(function(id){ return {recipeId:id, portions:null, moment:"flexible"}; });
+      // Rattache items directement à week (au lieu d'un tableau volant) pour que cocher une
+      // case dans la checklist se sauvegarde vraiment, y compris pour d'anciennes semaines
+      // stockées à l'ancien format ({recipeIds:[...]}).
+      if(!week.items){
+        week.items = (week.recipeIds||[]).map(function(id){ return {recipeId:id, portions:null, moment:"flexible"}; });
+      }
+      var items = week.items;
       var card = document.createElement("div");
       card.className = "card";
       var byMoment = {midi:[], soir:[], flexible:[]};
@@ -805,21 +819,37 @@
         var recipe = state.recipes.find(function(r){ return r.id===it.recipeId; });
         var nom = recipe ? recipe.nom : "(plat supprimé depuis)";
         var group = byMoment[it.moment] ? it.moment : "flexible";
-        byMoment[group].push(nom + (it.portions ? " — " + it.portions + " pers." : ""));
+        byMoment[group].push({it: it, label: nom + (it.portions ? " — " + it.portions + " pers." : "")});
       });
+      function checklistHtml(list){
+        return '<div class="week-checklist">' + list.map(function(entry){
+          return '<div class="shop-item'+(entry.it.fait?" checked":"")+'"><input type="checkbox" class="week-item-check"'+(entry.it.fait?" checked":"")+'><label>'+escapeHtml(entry.label)+'</label></div>';
+        }).join("") + '</div>';
+      }
       var html = "<strong>" + escapeHtml(week.date) + "</strong>";
       if(byMoment.midi.length){
-        html += '<p class="muted" style="margin:6px 0 2px 0;">🥪 Midi : ' + byMoment.midi.map(escapeHtml).join(", ") + "</p>";
+        html += '<p class="muted" style="margin:8px 0 2px 0;">🥪 Midi</p>' + checklistHtml(byMoment.midi);
       }
       if(byMoment.soir.length){
-        html += '<p class="muted" style="margin:2px 0;">🍽️ Soir : ' + byMoment.soir.map(escapeHtml).join(", ") + "</p>";
+        html += '<p class="muted" style="margin:8px 0 2px 0;">🍽️ Soir</p>' + checklistHtml(byMoment.soir);
       }
       if(byMoment.flexible.length){
-        html += '<p class="muted" style="margin:2px 0;">Autres : ' + byMoment.flexible.map(escapeHtml).join(", ") + "</p>";
+        html += '<p class="muted" style="margin:8px 0 2px 0;">Autres</p>' + checklistHtml(byMoment.flexible);
       }
       html += '<button type="button" class="btn small secondary no-print btn-toggle-week-list" style="margin-top:8px;">🛒 Voir la liste de courses de cette semaine</button>' +
         '<div class="week-shopping-list" style="display:none; margin-top:10px;"></div>';
       card.innerHTML = html;
+
+      // Coche à cocher "repas fait" : sauvegardée dans l'historique (persistée + synchronisée).
+      var allEntries = byMoment.midi.concat(byMoment.soir).concat(byMoment.flexible);
+      card.querySelectorAll(".week-item-check").forEach(function(cb, i){
+        var entry = allEntries[i];
+        cb.addEventListener("change", function(){
+          entry.it.fait = cb.checked;
+          cb.closest(".shop-item").classList.toggle("checked", cb.checked);
+          saveState();
+        });
+      });
       var toggleBtn = card.querySelector(".btn-toggle-week-list");
       var listDiv = card.querySelector(".week-shopping-list");
       toggleBtn.addEventListener("click", function(){
